@@ -22,4 +22,12 @@ public record ErrorResponse(
 		);
 	}
 
+	public static ErrorResponse of(int status, ErrorCode errorCode) {
+		return new ErrorResponse(
+			status,
+			errorCode.code(),
+			errorCode.message()
+		);
+	}
+
 }

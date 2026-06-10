@@ -3,7 +3,9 @@ package band.platform.common.error;
 import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Set;
 
@@ -37,6 +39,19 @@ class GlobalExceptionHandlerTest {
 		assertEquals(400, response.getBody().status());
 		assertEquals("E01", response.getBody().code());
 		assertEquals("요청 값이 올바르지 않습니다.", response.getBody().message());
+	}
+
+	@Test
+	@DisplayName("Spring MVC 4xx 예외의 HTTP 상태를 500으로 덮어쓰지 않는다")
+	void handleSpringErrorResponseException() {
+		ResponseEntity<ErrorResponse> response = handler.handleUnexpectedException(
+			new ResponseStatusException(HttpStatus.NOT_FOUND)
+		);
+
+		assertEquals(404, response.getStatusCode().value());
+		assertEquals(404, response.getBody().status());
+		assertEquals("E02", response.getBody().code());
+		assertEquals("요청한 리소스를 찾을 수 없습니다.", response.getBody().message());
 	}
 
 }

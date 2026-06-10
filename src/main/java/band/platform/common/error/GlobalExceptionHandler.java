@@ -34,11 +34,33 @@ public class GlobalExceptionHandler {
 
 	@ExceptionHandler(Exception.class)
 	public ResponseEntity<ErrorResponse> handleUnexpectedException(Exception exception) {
+		if (exception instanceof org.springframework.web.ErrorResponse errorResponse) {
+			int statusCode = errorResponse.getStatusCode().value();
+			ErrorCode errorCode = resolveSpringErrorCode(statusCode);
+
+			return ResponseEntity
+				.status(statusCode)
+				.body(ErrorResponse.of(statusCode, errorCode));
+		}
+
 		ErrorCode errorCode = ErrorCode.COMMON_INTERNAL_SERVER_ERROR;
 
 		return ResponseEntity
 			.status(errorCode.status())
 			.body(ErrorResponse.from(errorCode));
+	}
+
+	private ErrorCode resolveSpringErrorCode(int statusCode) {
+		return switch (statusCode) {
+			case 404 -> ErrorCode.COMMON_NOT_FOUND;
+			case 409 -> ErrorCode.COMMON_CONFLICT;
+			default -> {
+				if (statusCode >= 400 && statusCode < 500) {
+					yield ErrorCode.COMMON_INVALID_INPUT;
+				}
+				yield ErrorCode.COMMON_INTERNAL_SERVER_ERROR;
+			}
+		};
 	}
 
 }
