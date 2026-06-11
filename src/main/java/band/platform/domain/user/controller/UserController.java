@@ -11,7 +11,7 @@ import band.platform.domain.user.service.UserSignupService;
 import band.platform.global.ApiResult;
 import jakarta.validation.Valid;
 
-@RestController
+@RestController("/api/users")
 public class UserController {
 
 	private final UserSignupService userSignupService;
@@ -20,8 +20,10 @@ public class UserController {
 		this.userSignupService = userSignupService;
 	}
 
-	@PostMapping("/api/users")
-	public ResponseEntity<ApiResult<UserSignupResponse>> signup(@Valid @RequestBody UserSignupRequest request) {
+	@PostMapping("/sign-up")
+	public ResponseEntity<ApiResult<UserSignupResponse>> signup(
+		@Valid @RequestBody UserSignupRequest request
+	) {
 		return ApiResult.created(userSignupService.signup(request)).toResponseEntity();
 	}
 
