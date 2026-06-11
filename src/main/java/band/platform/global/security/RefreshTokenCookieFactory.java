@@ -14,13 +14,16 @@ public class RefreshTokenCookieFactory {
 
 	private final String cookieName;
 	private final boolean secure;
+	private final String sameSite;
 
 	public RefreshTokenCookieFactory(
 		@Value("${security.jwt.refresh-cookie-name}") String cookieName,
-		@Value("${security.jwt.refresh-cookie-secure}") boolean secure
+		@Value("${security.jwt.refresh-cookie-secure}") boolean secure,
+		@Value("${security.jwt.refresh-cookie-same-site}") String sameSite
 	) {
 		this.cookieName = cookieName;
 		this.secure = secure;
+		this.sameSite = sameSite;
 	}
 
 	public ResponseCookie create(String refreshToken, long maxAgeSeconds) {
@@ -53,7 +56,7 @@ public class RefreshTokenCookieFactory {
 			.httpOnly(true)
 			.secure(secure)
 			.path("/api/auth")
-			.sameSite("Lax");
+			.sameSite(sameSite);
 	}
 
 }

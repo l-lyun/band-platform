@@ -43,7 +43,7 @@ class UserControllerTest {
 		userSignupService = mock(UserSignupService.class);
 		userLoginService = mock(UserLoginService.class);
 		userTokenService = mock(UserTokenService.class);
-		refreshTokenCookieFactory = new RefreshTokenCookieFactory("refreshToken", false);
+		refreshTokenCookieFactory = new RefreshTokenCookieFactory("refreshToken", false, "Lax");
 		mockMvc = MockMvcBuilders
 			.standaloneSetup(new UserController(
 				userSignupService,

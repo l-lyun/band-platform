@@ -68,4 +68,20 @@ class JwtAuthenticationFilterTest {
 		assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
 	}
 
+	@Test
+	@DisplayName("공개 인증 API는 Authorization 헤더가 잘못되어도 JWT 필터를 건너뛴다")
+	void publicAuthEndpoint() throws Exception {
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		MockHttpServletResponse response = new MockHttpServletResponse();
+		request.setMethod("POST");
+		request.setServletPath("/api/auth/reissue");
+		request.addHeader(HttpHeaders.AUTHORIZATION, "Bearer invalid-token");
+
+		jwtAuthenticationFilter.doFilter(request, response, new MockFilterChain());
+
+		assertThat(response.getStatus()).isEqualTo(200);
+		assertThat(response.getContentAsString()).isEmpty();
+		assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+	}
+
 }

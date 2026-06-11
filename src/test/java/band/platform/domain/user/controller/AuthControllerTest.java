@@ -1,6 +1,7 @@
 package band.platform.domain.user.controller;
 
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -19,6 +20,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import band.platform.domain.user.dto.TokenResponse;
 import band.platform.domain.user.dto.UserTokenIssueResult;
 import band.platform.domain.user.service.UserTokenService;
+import band.platform.global.error.BusinessException;
+import band.platform.global.error.ErrorCode;
 import band.platform.global.error.GlobalExceptionHandler;
 import band.platform.global.security.RefreshTokenCookieFactory;
 
@@ -31,7 +34,7 @@ class AuthControllerTest {
 	@BeforeEach
 	void setUp() {
 		userTokenService = mock(UserTokenService.class);
-		RefreshTokenCookieFactory refreshTokenCookieFactory = new RefreshTokenCookieFactory("refreshToken", false);
+		RefreshTokenCookieFactory refreshTokenCookieFactory = new RefreshTokenCookieFactory("refreshToken", false, "Lax");
 		mockMvc = MockMvcBuilders
 			.standaloneSetup(new AuthController(userTokenService, refreshTokenCookieFactory))
 			.setControllerAdvice(new GlobalExceptionHandler())
@@ -76,6 +79,21 @@ class AuthControllerTest {
 			.andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Max-Age=0")));
 
 		verify(userTokenService).logout("refresh-token");
+	}
+
+	@Test
+	@DisplayName("로그아웃 토큰이 유효하지 않아도 쿠키를 만료한다")
+	void logoutWithInvalidRefreshToken() throws Exception {
+		doThrow(new BusinessException(ErrorCode.AUTH_TOKEN_INVALID))
+			.when(userTokenService).logout("invalid-refresh-token");
+
+		mockMvc.perform(post("/api/auth/logout")
+				.cookie(new jakarta.servlet.http.Cookie("refreshToken", "invalid-refresh-token")))
+			.andExpect(status().isOk())
+			.andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("refreshToken=")))
+			.andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Max-Age=0")));
+
+		verify(userTokenService).logout("invalid-refresh-token");
 	}
 
 }

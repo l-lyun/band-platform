@@ -47,7 +47,7 @@ public class AuthController {
 	@PostMapping("/logout")
 	public ResponseEntity<ApiResult<Void>> logout(HttpServletRequest request) {
 		refreshTokenCookieFactory.extract(request.getCookies())
-			.ifPresent(userTokenService::logout);
+			.ifPresent(this::deleteRefreshTokenIfValid);
 
 		return ResponseEntity.ok()
 			.header(HttpHeaders.SET_COOKIE, refreshTokenCookieFactory.delete().toString())
@@ -57,6 +57,14 @@ public class AuthController {
 	private String extractRefreshToken(HttpServletRequest request) {
 		return refreshTokenCookieFactory.extract(request.getCookies())
 			.orElseThrow(() -> new BusinessException(ErrorCode.AUTH_TOKEN_INVALID));
+	}
+
+	private void deleteRefreshTokenIfValid(String refreshToken) {
+		try {
+			userTokenService.logout(refreshToken);
+		} catch (BusinessException ignored) {
+			// HttpOnly cookies must be expired by the server even when token deletion fails.
+		}
 	}
 
 }
