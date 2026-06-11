@@ -1,6 +1,6 @@
-package band.platform.common.security;
+package band.platform.global.security;
 
-import band.platform.common.error.ErrorResponse;
+import band.platform.global.error.ErrorResponse;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.mock.web.MockHttpServletRequest;

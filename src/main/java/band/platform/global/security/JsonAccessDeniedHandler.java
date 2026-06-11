@@ -1,6 +1,6 @@
-package band.platform.common.security;
+package band.platform.global.security;
 
-import band.platform.common.error.ErrorCode;
+import band.platform.global.error.ErrorCode;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.access.AccessDeniedException;

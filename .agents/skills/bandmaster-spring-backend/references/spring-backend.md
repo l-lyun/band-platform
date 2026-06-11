@@ -8,13 +8,23 @@ Prefer feature-first packages:
 
 ```text
 band.platform
-  common
+  global
+  domain
   auth
-  member
-  profile
 ```
 
-Inside features, use layers only when useful:
+Shared cross-cutting code goes under `global`.
+
+```text
+global
+  error
+  security
+  entity
+```
+
+Domain code goes under `domain/<domain-name>`.
+
+Inside domain or feature packages, use layers only when useful:
 
 ```text
 presentation
