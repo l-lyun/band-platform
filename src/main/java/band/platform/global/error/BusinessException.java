@@ -1,4 +1,4 @@
-package band.platform.common.error;
+package band.platform.global.error;
 
 public class BusinessException extends RuntimeException {
 

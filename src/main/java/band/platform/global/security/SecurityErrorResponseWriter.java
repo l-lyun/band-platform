@@ -1,7 +1,7 @@
-package band.platform.common.security;
+package band.platform.global.security;
 
-import band.platform.common.error.ErrorCode;
-import band.platform.common.error.ErrorResponse;
+import band.platform.global.error.ErrorCode;
+import band.platform.global.error.ErrorResponse;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
