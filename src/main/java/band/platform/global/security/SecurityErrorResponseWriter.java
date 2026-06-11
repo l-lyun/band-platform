@@ -10,14 +10,13 @@ import tools.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
+import lombok.RequiredArgsConstructor;
+
 @Component
+@RequiredArgsConstructor
 public class SecurityErrorResponseWriter {
 
 	private final ObjectMapper objectMapper;
-
-	public SecurityErrorResponseWriter(ObjectMapper objectMapper) {
-		this.objectMapper = objectMapper;
-	}
 
 	public void write(HttpServletResponse response, ErrorCode errorCode) throws IOException {
 		response.setStatus(errorCode.status().value());

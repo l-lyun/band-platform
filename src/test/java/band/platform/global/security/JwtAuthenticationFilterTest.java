@@ -14,6 +14,7 @@ import org.springframework.mock.web.MockFilterChain;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import tools.jackson.databind.ObjectMapper;
 
@@ -22,14 +23,7 @@ class JwtAuthenticationFilterTest {
 	private static final Clock FIXED_CLOCK = Clock.fixed(Instant.parse("2026-06-11T00:00:00Z"), ZoneOffset.UTC);
 
 	private final ObjectMapper objectMapper = new ObjectMapper();
-	private final JwtTokenProvider jwtTokenProvider = new JwtTokenProvider(
-		objectMapper,
-		FIXED_CLOCK,
-		"band-platform",
-		"test-secret-key-for-jwt-token-provider",
-		1800,
-		1209600
-	);
+	private final JwtTokenProvider jwtTokenProvider = createJwtTokenProvider();
 	private final JwtAuthenticationFilter jwtAuthenticationFilter = new JwtAuthenticationFilter(
 		jwtTokenProvider,
 		new SecurityErrorResponseWriter(objectMapper)
@@ -66,6 +60,15 @@ class JwtAuthenticationFilterTest {
 		assertThat(response.getStatus()).isEqualTo(401);
 		assertThat(response.getContentAsString()).contains("\"code\":\"A06\"");
 		assertThat(SecurityContextHolder.getContext().getAuthentication()).isNull();
+	}
+
+	private JwtTokenProvider createJwtTokenProvider() {
+		JwtTokenProvider jwtTokenProvider = new JwtTokenProvider(objectMapper, FIXED_CLOCK);
+		ReflectionTestUtils.setField(jwtTokenProvider, "issuer", "band-platform");
+		ReflectionTestUtils.setField(jwtTokenProvider, "secret", "test-secret-key-for-jwt-token-provider");
+		ReflectionTestUtils.setField(jwtTokenProvider, "accessTokenTtlSeconds", 1800L);
+		ReflectionTestUtils.setField(jwtTokenProvider, "refreshTokenTtlSeconds", 1209600L);
+		return jwtTokenProvider;
 	}
 
 }

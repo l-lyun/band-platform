@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import band.platform.domain.user.dto.TokenResponse;
 import band.platform.domain.user.dto.UserTokenIssueResult;
@@ -31,7 +32,7 @@ class AuthControllerTest {
 	@BeforeEach
 	void setUp() {
 		userTokenService = mock(UserTokenService.class);
-		RefreshTokenCookieFactory refreshTokenCookieFactory = new RefreshTokenCookieFactory("refreshToken", false);
+		RefreshTokenCookieFactory refreshTokenCookieFactory = refreshTokenCookieFactory();
 		mockMvc = MockMvcBuilders
 			.standaloneSetup(new AuthController(userTokenService, refreshTokenCookieFactory))
 			.setControllerAdvice(new GlobalExceptionHandler())
@@ -76,6 +77,13 @@ class AuthControllerTest {
 			.andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Max-Age=0")));
 
 		verify(userTokenService).logout("refresh-token");
+	}
+
+	private RefreshTokenCookieFactory refreshTokenCookieFactory() {
+		RefreshTokenCookieFactory refreshTokenCookieFactory = new RefreshTokenCookieFactory();
+		ReflectionTestUtils.setField(refreshTokenCookieFactory, "cookieName", "refreshToken");
+		ReflectionTestUtils.setField(refreshTokenCookieFactory, "secure", false);
+		return refreshTokenCookieFactory;
 	}
 
 }

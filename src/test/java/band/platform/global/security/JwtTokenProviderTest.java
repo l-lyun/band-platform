@@ -9,6 +9,7 @@ import java.time.ZoneOffset;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
@@ -18,14 +19,7 @@ class JwtTokenProviderTest {
 
 	private static final Clock FIXED_CLOCK = Clock.fixed(Instant.parse("2026-06-11T00:00:00Z"), ZoneOffset.UTC);
 
-	private final JwtTokenProvider jwtTokenProvider = new JwtTokenProvider(
-		new ObjectMapper(),
-		FIXED_CLOCK,
-		"band-platform",
-		"test-secret-key-for-jwt-token-provider",
-		1800,
-		1209600
-	);
+	private final JwtTokenProvider jwtTokenProvider = createJwtTokenProvider();
 
 	@Test
 	@DisplayName("액세스 토큰을 발급하고 회원 식별 클레임을 검증한다")
@@ -73,6 +67,15 @@ class JwtTokenProviderTest {
 			.isInstanceOfSatisfying(BusinessException.class, exception ->
 				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_TOKEN_INVALID)
 			);
+	}
+
+	private static JwtTokenProvider createJwtTokenProvider() {
+		JwtTokenProvider jwtTokenProvider = new JwtTokenProvider(new ObjectMapper(), FIXED_CLOCK);
+		ReflectionTestUtils.setField(jwtTokenProvider, "issuer", "band-platform");
+		ReflectionTestUtils.setField(jwtTokenProvider, "secret", "test-secret-key-for-jwt-token-provider");
+		ReflectionTestUtils.setField(jwtTokenProvider, "accessTokenTtlSeconds", 1800L);
+		ReflectionTestUtils.setField(jwtTokenProvider, "refreshTokenTtlSeconds", 1209600L);
+		return jwtTokenProvider;
 	}
 
 }

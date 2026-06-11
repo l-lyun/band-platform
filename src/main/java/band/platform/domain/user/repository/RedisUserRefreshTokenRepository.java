@@ -8,7 +8,10 @@ import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import lombok.RequiredArgsConstructor;
+
 @Repository
+@RequiredArgsConstructor
 public class RedisUserRefreshTokenRepository implements UserRefreshTokenRepository {
 
 	private static final String REFRESH_TOKEN_KEY_PREFIX = "auth:refresh:";
@@ -31,10 +34,6 @@ public class RedisUserRefreshTokenRepository implements UserRefreshTokenReposito
 		RedisScript.of(ROTATE_REFRESH_TOKEN_SCRIPT_TEXT, Long.class);
 
 	private final StringRedisTemplate redisTemplate;
-
-	public RedisUserRefreshTokenRepository(StringRedisTemplate redisTemplate) {
-		this.redisTemplate = redisTemplate;
-	}
 
 	@Override
 	public void save(Long userId, String tokenId, Duration ttl) {

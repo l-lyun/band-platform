@@ -5,8 +5,10 @@ import java.time.Duration;
 import org.springframework.stereotype.Service;
 
 import band.platform.domain.user.repository.UserLoginLockRepository;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class UserLoginLockPolicy {
 
 	public static final int MAX_LOGIN_FAILURE_COUNT = 5;
@@ -14,10 +16,6 @@ public class UserLoginLockPolicy {
 	public static final Duration LOGIN_LOCK_TTL = Duration.ofHours(24);
 
 	private final UserLoginLockRepository userLoginLockRepository;
-
-	public UserLoginLockPolicy(UserLoginLockRepository userLoginLockRepository) {
-		this.userLoginLockRepository = userLoginLockRepository;
-	}
 
 	public boolean isLocked(String loginId) {
 		return userLoginLockRepository.existsLock(loginId);

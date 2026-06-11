@@ -8,7 +8,10 @@ import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import lombok.RequiredArgsConstructor;
+
 @Repository
+@RequiredArgsConstructor
 public class RedisUserLoginLockRepository implements UserLoginLockRepository {
 
 	private static final String LOGIN_FAILURE_KEY_PREFIX = "login:failure:";
@@ -42,10 +45,6 @@ public class RedisUserLoginLockRepository implements UserLoginLockRepository {
 	private static final RedisScript<Long> RECORD_FAILURE_SCRIPT = RedisScript.of(RECORD_FAILURE_SCRIPT_TEXT, Long.class);
 
 	private final StringRedisTemplate redisTemplate;
-
-	public RedisUserLoginLockRepository(StringRedisTemplate redisTemplate) {
-		this.redisTemplate = redisTemplate;
-	}
 
 	@Override
 	public boolean existsLock(String loginId) {
