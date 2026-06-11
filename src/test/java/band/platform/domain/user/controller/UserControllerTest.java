@@ -186,6 +186,7 @@ class UserControllerTest {
 		RefreshTokenCookieFactory refreshTokenCookieFactory = new RefreshTokenCookieFactory();
 		ReflectionTestUtils.setField(refreshTokenCookieFactory, "cookieName", "refreshToken");
 		ReflectionTestUtils.setField(refreshTokenCookieFactory, "secure", false);
+		ReflectionTestUtils.setField(refreshTokenCookieFactory, "sameSite", "Lax");
 		return refreshTokenCookieFactory;
 	}
 

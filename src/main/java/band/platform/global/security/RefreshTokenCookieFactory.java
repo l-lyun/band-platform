@@ -20,6 +20,9 @@ public class RefreshTokenCookieFactory {
 	@Value("${security.jwt.refresh-cookie-secure}")
 	private boolean secure;
 
+	@Value("${security.jwt.refresh-cookie-same-site}")
+	private String sameSite;
+
 	public ResponseCookie create(String refreshToken, long maxAgeSeconds) {
 		return baseCookie()
 			.value(refreshToken)
@@ -50,7 +53,7 @@ public class RefreshTokenCookieFactory {
 			.httpOnly(true)
 			.secure(secure)
 			.path("/api/auth")
-			.sameSite("Lax");
+			.sameSite(sameSite);
 	}
 
 }

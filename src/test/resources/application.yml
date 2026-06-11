@@ -16,3 +16,6 @@ security:
     refresh-token-ttl-seconds: 1209600
     refresh-cookie-name: refreshToken
     refresh-cookie-secure: false
+    refresh-cookie-same-site: Lax
+  cors:
+    allowed-origins: http://localhost:3000,http://localhost:5173

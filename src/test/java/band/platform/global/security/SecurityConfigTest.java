@@ -30,11 +30,12 @@ class SecurityConfigTest {
 		request.setRequestURI("/api/users");
 
 		CorsConfiguration configuration = securityConfig
-			.corsConfigurationSource()
+			.corsConfigurationSource("http://localhost:3000,http://localhost:5173")
 			.getCorsConfiguration(request);
 
 		assertThat(configuration).isNotNull();
-		assertThat(configuration.getAllowedOriginPatterns()).contains("*");
+		assertThat(configuration.getAllowedOrigins()).containsExactly("http://localhost:3000", "http://localhost:5173");
+		assertThat(configuration.getAllowedOriginPatterns()).isNull();
 		assertThat(configuration.getAllowedMethods()).contains("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
 		assertThat(configuration.getAllowedHeaders()).contains("Authorization", "Content-Type", "Accept");
 		assertThat(configuration.getExposedHeaders()).contains("Authorization");
