@@ -1,6 +1,7 @@
 package band.platform.domain.user.controller;
 
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -11,17 +12,22 @@ import static org.mockito.Mockito.when;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import band.platform.domain.user.dto.TokenResponse;
 import band.platform.domain.user.dto.UserLoginResponse;
 import band.platform.domain.user.dto.UserSignupResponse;
+import band.platform.domain.user.dto.UserTokenIssueResult;
 import band.platform.domain.user.service.UserLoginService;
 import band.platform.domain.user.service.UserSignupService;
+import band.platform.domain.user.service.UserTokenService;
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
 import band.platform.global.error.GlobalExceptionHandler;
+import band.platform.global.security.RefreshTokenCookieFactory;
 
 class UserControllerTest {
 
@@ -29,13 +35,22 @@ class UserControllerTest {
 
 	private UserSignupService userSignupService;
 	private UserLoginService userLoginService;
+	private UserTokenService userTokenService;
+	private RefreshTokenCookieFactory refreshTokenCookieFactory;
 
 	@BeforeEach
 	void setUp() {
 		userSignupService = mock(UserSignupService.class);
 		userLoginService = mock(UserLoginService.class);
+		userTokenService = mock(UserTokenService.class);
+		refreshTokenCookieFactory = new RefreshTokenCookieFactory("refreshToken", false);
 		mockMvc = MockMvcBuilders
-			.standaloneSetup(new UserController(userSignupService, userLoginService))
+			.standaloneSetup(new UserController(
+				userSignupService,
+				userLoginService,
+				userTokenService,
+				refreshTokenCookieFactory
+			))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.build();
 	}
@@ -88,17 +103,28 @@ class UserControllerTest {
 	@DisplayName("로그인 요청이 유효하면 200 응답과 회원 식별 정보를 반환한다")
 	void login() throws Exception {
 		when(userLoginService.login(any()))
-			.thenReturn(new UserLoginResponse(1L, "bandmaster", "bandmaster@example.com"));
+			.thenReturn(new UserLoginResponse(1L, "bandmaster", "bandmaster@example.com", null, null, 0));
+		when(userTokenService.issue(1L, "bandmaster"))
+			.thenReturn(new UserTokenIssueResult(
+				TokenResponse.bearer("access-token", 1800),
+				"refresh-token",
+				1209600
+			));
 
 		mockMvc.perform(post("/api/users/sign-in")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(loginRequest("bandmaster", "password123!")))
 			.andExpect(status().isOk())
+			.andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("refreshToken=refresh-token")))
+			.andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("HttpOnly")))
 			.andExpect(jsonPath("$.status").value(200))
 			.andExpect(jsonPath("$.message").value("요청이 성공했습니다."))
 			.andExpect(jsonPath("$.data.id").isNumber())
 			.andExpect(jsonPath("$.data.loginId").value("bandmaster"))
-			.andExpect(jsonPath("$.data.email").value("bandmaster@example.com"));
+			.andExpect(jsonPath("$.data.email").value("bandmaster@example.com"))
+			.andExpect(jsonPath("$.data.accessToken").value("access-token"))
+			.andExpect(jsonPath("$.data.tokenType").value("Bearer"))
+			.andExpect(jsonPath("$.data.expiresIn").value(1800));
 	}
 
 	@Test
@@ -117,7 +143,7 @@ class UserControllerTest {
 	}
 
 	@Test
-	@DisplayName("로그인 비밀번호가 15자를 초과하면 E01 에러 응답을 반환한다")
+	@DisplayName("로그인 비밀번호가 BCrypt 72바이트를 초과하면 E01 에러 응답을 반환한다")
 	void passwordByteLengthExceeded() throws Exception {
 		mockMvc.perform(post("/api/users/sign-in")
 				.contentType(MediaType.APPLICATION_JSON)

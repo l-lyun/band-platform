@@ -8,7 +8,9 @@ final class PublicEndpoints {
 
 	static final String[] AUTH_POST_ENDPOINTS = {
 		"/api/auth/signup",
-		"/api/auth/login"
+		"/api/auth/login",
+		"/api/auth/reissue",
+		"/api/auth/logout"
 	};
 
 	static final String[] OPTIONS_ENDPOINTS = {
