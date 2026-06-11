@@ -19,6 +19,15 @@ import java.util.List;
 @Configuration
 public class SecurityConfig {
 
+	private static final String[] PUBLIC_USER_POST_ENDPOINTS = {
+		"/api/users/sign-*"
+	};
+
+	private static final String[] PUBLIC_AUTH_POST_ENDPOINTS = {
+		"/api/auth/signup",
+		"/api/auth/login"
+	};
+
 	@Bean
 	public SecurityFilterChain securityFilterChain(
 		HttpSecurity http,
@@ -37,13 +46,8 @@ public class SecurityConfig {
 				.accessDeniedHandler(accessDeniedHandler)
 			)
 			.authorizeHttpRequests(authorization -> authorization
-				.requestMatchers(
-					HttpMethod.POST,
-					"/api/users/sign-up",
-					"/api/users/sign-in",
-					"/api/auth/signup",
-					"/api/auth/login"
-				).permitAll()
+				.requestMatchers(HttpMethod.POST, PUBLIC_USER_POST_ENDPOINTS).permitAll()
+				.requestMatchers(HttpMethod.POST, PUBLIC_AUTH_POST_ENDPOINTS).permitAll()
 				.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 				.requestMatchers("/error").permitAll()
 				.anyRequest().authenticated()
