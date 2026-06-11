@@ -1,20 +1,28 @@
 package band.platform.domain.user;
 
-import org.assertj.core.api.Assertions;
-import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 class UserTest {
 
-	User user;
+	@Test
+	@DisplayName("로컬 회원을 생성하면 기본 상태가 ACTIVE로 설정된다")
+	void createLocalUser() {
+		User user = createLocalUserFixture();
 
-	@BeforeEach
-	void setUp() {
-		user = User.createLocalUser(
+		assertThat(user).isNotNull();
+		assertThat(user.getId()).isNull();
+		assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
+	}
+
+	private User createLocalUserFixture() {
+		return User.createLocalUser(
 			"김김김",
-			"aa",
-			"11",
-			"aaa",
+			"bandmaster",
+			"encoded-password",
+			"bandmaster@example.com",
 			"자기소개",
 			false,
 			"01012345678",
@@ -25,10 +33,4 @@ class UserTest {
 		);
 	}
 
-	@Test
-	void userCreateTest() {
-		Assertions.assertThat(user).isNotNull();
-		Assertions.assertThat(user.getId()).isNull();
-		Assertions.assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
-	}
 }

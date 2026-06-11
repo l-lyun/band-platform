@@ -1,12 +1,13 @@
 package band.platform.domain.user;
 
-import org.assertj.core.api.Assertions;
+import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
-import jakarta.persistence.EntityManager;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @Transactional
@@ -19,30 +20,35 @@ class UserRepositoryTest {
 	private EntityManager entityManager;
 
 	@Test
+	@DisplayName("로그인 아이디로 회원을 조회하고 없으면 빈 Optional을 반환한다")
 	void findByLoginId() {
 		User user = saveUser("bandmaster", "bandmaster@example.com");
 
-		Assertions.assertThat(userRepository.findByLoginId(user.getLoginId())).isPresent();
-		Assertions.assertThat(userRepository.findByLoginId("unknown")).isEmpty();
+		assertThat(userRepository.findByLoginId(user.getLoginId()))
+			.hasValueSatisfying(foundUser -> assertThat(foundUser.getLoginId()).isEqualTo("bandmaster"));
+		assertThat(userRepository.findByLoginId("unknown")).isEmpty();
 	}
 
 	@Test
+	@DisplayName("로그인 아이디 존재 여부를 반환한다")
 	void existsByLoginId() {
 		saveUser("bandmaster", "bandmaster@example.com");
 
-		Assertions.assertThat(userRepository.existsByLoginId("bandmaster")).isTrue();
-		Assertions.assertThat(userRepository.existsByLoginId("unknown")).isFalse();
+		assertThat(userRepository.existsByLoginId("bandmaster")).isTrue();
+		assertThat(userRepository.existsByLoginId("unknown")).isFalse();
 	}
 
 	@Test
+	@DisplayName("이메일 존재 여부를 반환한다")
 	void existsByEmail() {
 		saveUser("bandmaster", "bandmaster@example.com");
 
-		Assertions.assertThat(userRepository.existsByEmail("bandmaster@example.com")).isTrue();
-		Assertions.assertThat(userRepository.existsByEmail("unknown@example.com")).isFalse();
+		assertThat(userRepository.existsByEmail("bandmaster@example.com")).isTrue();
+		assertThat(userRepository.existsByEmail("unknown@example.com")).isFalse();
 	}
 
 	@Test
+	@DisplayName("status 컬럼이 없는 기존 회원은 ACTIVE 상태로 조회된다")
 	void existingUserRowsUseDefaultStatus() {
 		entityManager.createNativeQuery("""
 			INSERT INTO users (
@@ -82,7 +88,7 @@ class UserRepositoryTest {
 
 		User user = userRepository.findByLoginId("legacy").orElseThrow();
 
-		Assertions.assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
+		assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
 	}
 
 	private User saveUser(String loginId, String email) {
