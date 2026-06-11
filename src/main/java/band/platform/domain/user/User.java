@@ -5,15 +5,15 @@ import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
+import jakarta.persistence.PostLoad;
+import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import lombok.AccessLevel;
-import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 
 @Entity
 @Table(name = "users")
-@AllArgsConstructor
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @Getter
 public class User extends BaseEntity {
@@ -56,6 +56,39 @@ public class User extends BaseEntity {
 	@Column(nullable = false)
 	private Boolean marketingPolicyAgreed;
 
+	@Column(nullable = false, columnDefinition = "varchar(20) default 'ACTIVE'")
+	@Enumerated(EnumType.STRING)
+	private UserStatus status = UserStatus.ACTIVE;
+
+	private User(
+		String name,
+		String loginId,
+		String password,
+		String email,
+		String description,
+		Boolean opened,
+		String phoneNumber,
+		Gender gender,
+		String profileImg,
+		SocialProvider socialProvider,
+		Boolean privacyPolicyAgreed,
+		Boolean marketingPolicyAgreed
+	) {
+		this.name = name;
+		this.loginId = loginId;
+		this.password = password;
+		this.email = email;
+		this.description = description;
+		this.opened = opened;
+		this.phoneNumber = phoneNumber;
+		this.gender = gender;
+		this.profileImg = profileImg;
+		this.socialProvider = socialProvider;
+		this.privacyPolicyAgreed = privacyPolicyAgreed;
+		this.marketingPolicyAgreed = marketingPolicyAgreed;
+		this.status = UserStatus.ACTIVE;
+	}
+
 	public static User createLocalUser(
 		String name,
 		String loginId,
@@ -83,6 +116,14 @@ public class User extends BaseEntity {
 			privacyPolicyAgreed,
 			marketingPolicyAgreed
 		);
+	}
+
+	@PostLoad
+	@PrePersist
+	private void initializeStatus() {
+		if (this.status == null) {
+			this.status = UserStatus.ACTIVE;
+		}
 	}
 
 }
