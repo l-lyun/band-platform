@@ -15,7 +15,9 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import band.platform.domain.user.dto.UserLoginResponse;
 import band.platform.domain.user.dto.UserSignupResponse;
+import band.platform.domain.user.service.UserLoginService;
 import band.platform.domain.user.service.UserSignupService;
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
@@ -26,12 +28,14 @@ class UserControllerTest {
 	private MockMvc mockMvc;
 
 	private UserSignupService userSignupService;
+	private UserLoginService userLoginService;
 
 	@BeforeEach
 	void setUp() {
 		userSignupService = mock(UserSignupService.class);
+		userLoginService = mock(UserLoginService.class);
 		mockMvc = MockMvcBuilders
-			.standaloneSetup(new UserController(userSignupService))
+			.standaloneSetup(new UserController(userSignupService, userLoginService))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.build();
 	}
@@ -80,6 +84,38 @@ class UserControllerTest {
 			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
 	}
 
+	@Test
+	@DisplayName("로그인 요청이 유효하면 200 응답과 회원 식별 정보를 반환한다")
+	void login() throws Exception {
+		when(userLoginService.login(any()))
+			.thenReturn(new UserLoginResponse(1L, "bandmaster", "bandmaster@example.com"));
+
+		mockMvc.perform(post("/api/users/sign-in")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(loginRequest("bandmaster", "password123!")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value(200))
+			.andExpect(jsonPath("$.message").value("요청이 성공했습니다."))
+			.andExpect(jsonPath("$.data.id").isNumber())
+			.andExpect(jsonPath("$.data.loginId").value("bandmaster"))
+			.andExpect(jsonPath("$.data.email").value("bandmaster@example.com"));
+	}
+
+	@Test
+	@DisplayName("로그인 아이디나 비밀번호가 올바르지 않으면 A03 에러 응답을 반환한다")
+	void invalidCredentials() throws Exception {
+		when(userLoginService.login(any()))
+			.thenThrow(new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS));
+
+		mockMvc.perform(post("/api/users/sign-in")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(loginRequest("bandmaster", "wrongPassword123!")))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.status").value(401))
+			.andExpect(jsonPath("$.code").value("A03"))
+			.andExpect(jsonPath("$.message").value("아이디 또는 비밀번호가 올바르지 않습니다."));
+	}
+
 	private String signupRequest(String loginId, String email, boolean privacyPolicyAgreed) {
 		return """
 			{
@@ -96,6 +132,15 @@ class UserControllerTest {
 				"marketingPolicyAgreed": true
 			}
 			""".formatted(loginId, email, privacyPolicyAgreed);
+	}
+
+	private String loginRequest(String loginId, String password) {
+		return """
+			{
+				"loginId": "%s",
+				"password": "%s"
+			}
+			""".formatted(loginId, password);
 	}
 
 }

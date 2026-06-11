@@ -37,7 +37,13 @@ public class SecurityConfig {
 				.accessDeniedHandler(accessDeniedHandler)
 			)
 			.authorizeHttpRequests(authorization -> authorization
-				.requestMatchers(HttpMethod.POST, "/api/users/sign-up", "/api/auth/signup", "/api/auth/login").permitAll()
+				.requestMatchers(
+					HttpMethod.POST,
+					"/api/users/sign-up",
+					"/api/users/sign-in",
+					"/api/auth/signup",
+					"/api/auth/login"
+				).permitAll()
 				.requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
 				.requestMatchers("/error").permitAll()
 				.anyRequest().authenticated()
