@@ -1,4 +1,4 @@
-package band.platform.domain.user;
+package band.platform.domain.user.entity;
 
 import band.platform.global.entity.BaseEntity;
 import jakarta.persistence.Column;
