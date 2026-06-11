@@ -8,7 +8,9 @@ Spring Boot 기반 밴드 플랫폼 API 서버입니다.
 - Spring Boot
 - Spring Web
 - Spring Data JPA
+- Spring Data Redis
 - MySQL
+- Redis
 - Gradle
 
 ## Getting Started
@@ -19,10 +21,10 @@ Spring Boot 기반 밴드 플랫폼 API 서버입니다.
 cp .env.example .env
 ```
 
-MySQL 컨테이너를 실행합니다.
+MySQL과 Redis 컨테이너를 실행합니다.
 
 ```bash
-docker compose up -d mysql
+docker compose up -d mysql redis
 ```
 
 애플리케이션을 실행합니다.
