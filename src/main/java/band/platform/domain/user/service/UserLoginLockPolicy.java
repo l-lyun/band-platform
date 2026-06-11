@@ -1,12 +1,10 @@
 package band.platform.domain.user.service;
 
 import java.time.Duration;
-import java.util.List;
 
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
+
+import band.platform.domain.user.repository.UserLoginLockRepository;
 
 @Service
 public class UserLoginLockPolicy {
@@ -15,81 +13,29 @@ public class UserLoginLockPolicy {
 	public static final Duration LOGIN_FAILURE_TTL = Duration.ofHours(24);
 	public static final Duration LOGIN_LOCK_TTL = Duration.ofHours(24);
 
-	private static final String LOGIN_FAILURE_KEY_PREFIX = "login:failure:";
-	private static final String LOGIN_LOCK_KEY_PREFIX = "login:lock:";
-	private static final String LOCK_VALUE = "LOCKED";
-	static final String RECORD_FAILURE_SCRIPT_TEXT = """
-		local failureKey = KEYS[1]
-		local lockKey = KEYS[2]
-		local maxFailureCount = tonumber(ARGV[1])
-		local failureTtlSeconds = tonumber(ARGV[2])
-		local lockTtlSeconds = tonumber(ARGV[3])
-		local lockValue = ARGV[4]
+	private final UserLoginLockRepository userLoginLockRepository;
 
-		if redis.call('EXISTS', lockKey) == 1 then
-			return maxFailureCount
-		end
-
-		local failureCount = redis.call('INCR', failureKey)
-		if failureCount == 1 then
-			redis.call('EXPIRE', failureKey, failureTtlSeconds)
-		end
-
-		if failureCount >= maxFailureCount then
-			redis.call('DEL', failureKey)
-			redis.call('SET', lockKey, lockValue, 'EX', lockTtlSeconds)
-			return maxFailureCount
-		end
-
-		return failureCount
-		""";
-	private static final RedisScript<Long> RECORD_FAILURE_SCRIPT = RedisScript.of(RECORD_FAILURE_SCRIPT_TEXT, Long.class);
-
-	private final StringRedisTemplate redisTemplate;
-
-	public UserLoginLockPolicy(StringRedisTemplate redisTemplate) {
-		this.redisTemplate = redisTemplate;
+	public UserLoginLockPolicy(UserLoginLockRepository userLoginLockRepository) {
+		this.userLoginLockRepository = userLoginLockRepository;
 	}
 
 	public boolean isLocked(String loginId) {
-		return Boolean.TRUE.equals(redisTemplate.hasKey(loginLockKey(loginId)));
+		return userLoginLockRepository.existsLock(loginId);
 	}
 
 	public LoginFailureResult recordFailure(String loginId) {
-		Long failureCount = redisTemplate.execute(
-			RECORD_FAILURE_SCRIPT,
-			List.of(loginFailureKey(loginId), loginLockKey(loginId)),
-			String.valueOf(MAX_LOGIN_FAILURE_COUNT),
-			String.valueOf(LOGIN_FAILURE_TTL.toSeconds()),
-			String.valueOf(LOGIN_LOCK_TTL.toSeconds()),
-			LOCK_VALUE
+		int failureCount = userLoginLockRepository.increaseFailureCountAndLockIfThresholdReached(
+			loginId,
+			MAX_LOGIN_FAILURE_COUNT,
+			LOGIN_FAILURE_TTL,
+			LOGIN_LOCK_TTL
 		);
-		if (failureCount == null) {
-			throw new IllegalStateException("Redis login failure script result is null.");
-		}
 
-		int resultCount = failureCount.intValue();
-		return new LoginFailureResult(resultCount, resultCount >= MAX_LOGIN_FAILURE_COUNT);
+		return new LoginFailureResult(failureCount, failureCount >= MAX_LOGIN_FAILURE_COUNT);
 	}
 
 	public void clear(String loginId) {
-		redisTemplate.delete(loginFailureKey(loginId));
-		redisTemplate.delete(loginLockKey(loginId));
-	}
-
-	private static String loginFailureKey(String loginId) {
-		return LOGIN_FAILURE_KEY_PREFIX + requireLoginId(loginId);
-	}
-
-	private static String loginLockKey(String loginId) {
-		return LOGIN_LOCK_KEY_PREFIX + requireLoginId(loginId);
-	}
-
-	private static String requireLoginId(String loginId) {
-		if (!StringUtils.hasText(loginId)) {
-			throw new IllegalArgumentException("loginId must not be blank.");
-		}
-		return loginId;
+		userLoginLockRepository.deleteFailureCountAndLock(loginId);
 	}
 
 	public record LoginFailureResult(int failureCount, boolean locked) {

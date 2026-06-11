@@ -1,18 +1,15 @@
 package band.platform.domain.user.service;
 
 import java.time.Duration;
-import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
-import org.mockito.ArgumentMatchers;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.data.redis.core.StringRedisTemplate;
-import org.springframework.data.redis.core.script.RedisScript;
 
+import band.platform.domain.user.repository.UserLoginLockRepository;
 import band.platform.domain.user.service.UserLoginLockPolicy.LoginFailureResult;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,54 +21,41 @@ import static org.mockito.Mockito.when;
 class UserLoginLockPolicyTest {
 
 	private static final String LOGIN_ID = "bandmaster";
-	private static final String FAILURE_KEY = "login:failure:" + LOGIN_ID;
-	private static final String LOCK_KEY = "login:lock:" + LOGIN_ID;
-	private static final List<String> LOCK_KEYS = List.of(FAILURE_KEY, LOCK_KEY);
 
 	@Mock
-	private StringRedisTemplate redisTemplate;
+	private UserLoginLockRepository userLoginLockRepository;
 
 	@InjectMocks
 	private UserLoginLockPolicy userLoginLockPolicy;
 
 	@Test
-	@DisplayName("로그인 실패를 기록할 때 실패 키와 잠금 키를 함께 전달한다")
+	@DisplayName("로그인 실패 횟수가 5회 미만이면 잠금 상태가 아니라고 반환한다")
 	void recordFirstFailure() {
-		givenScriptResult(1L);
+		givenFailureCount(1);
 
 		LoginFailureResult result = userLoginLockPolicy.recordFailure(LOGIN_ID);
 
 		assertThat(result.failureCount()).isEqualTo(1);
 		assertThat(result.locked()).isFalse();
-		verifyRecordFailureScript();
+		verifyIncreaseFailureCount();
 	}
 
 	@Test
 	@DisplayName("로그인 실패가 5회가 되면 잠금 상태를 반환한다")
 	void recordFifthFailure() {
-		givenScriptResult(5L);
+		givenFailureCount(5);
 
 		LoginFailureResult result = userLoginLockPolicy.recordFailure(LOGIN_ID);
 
 		assertThat(result.failureCount()).isEqualTo(UserLoginLockPolicy.MAX_LOGIN_FAILURE_COUNT);
 		assertThat(result.locked()).isTrue();
-		verifyRecordFailureScript();
-	}
-
-	@Test
-	@DisplayName("로그인 실패 스크립트는 실패 키 삭제 후 잠금 키를 24시간 동안 생성한다")
-	void recordFailureScript() {
-		assertThat(UserLoginLockPolicy.RECORD_FAILURE_SCRIPT_TEXT)
-			.contains("redis.call('DEL', failureKey)")
-			.contains("redis.call('SET', lockKey, lockValue, 'EX', lockTtlSeconds)");
-		assertThat(UserLoginLockPolicy.LOGIN_FAILURE_TTL).isEqualTo(Duration.ofHours(24));
-		assertThat(UserLoginLockPolicy.LOGIN_LOCK_TTL).isEqualTo(Duration.ofHours(24));
+		verifyIncreaseFailureCount();
 	}
 
 	@Test
 	@DisplayName("잠금 키가 있으면 잠긴 상태로 판단한다")
 	void isLocked() {
-		when(redisTemplate.hasKey(LOCK_KEY)).thenReturn(true);
+		when(userLoginLockRepository.existsLock(LOGIN_ID)).thenReturn(true);
 
 		assertThat(userLoginLockPolicy.isLocked(LOGIN_ID)).isTrue();
 	}
@@ -81,29 +65,24 @@ class UserLoginLockPolicyTest {
 	void clear() {
 		userLoginLockPolicy.clear(LOGIN_ID);
 
-		verify(redisTemplate).delete(FAILURE_KEY);
-		verify(redisTemplate).delete(LOCK_KEY);
+		verify(userLoginLockRepository).deleteFailureCountAndLock(LOGIN_ID);
 	}
 
-	private void givenScriptResult(Long failureCount) {
-		when(redisTemplate.execute(
-			ArgumentMatchers.<RedisScript<Long>>any(),
-			eq(LOCK_KEYS),
-			eq("5"),
-			eq("86400"),
-			eq("86400"),
-			eq("LOCKED")
+	private void givenFailureCount(int failureCount) {
+		when(userLoginLockRepository.increaseFailureCountAndLockIfThresholdReached(
+			eq(LOGIN_ID),
+			eq(UserLoginLockPolicy.MAX_LOGIN_FAILURE_COUNT),
+			eq(Duration.ofHours(24)),
+			eq(Duration.ofHours(24))
 		)).thenReturn(failureCount);
 	}
 
-	private void verifyRecordFailureScript() {
-		verify(redisTemplate).execute(
-			ArgumentMatchers.<RedisScript<Long>>any(),
-			eq(LOCK_KEYS),
-			eq("5"),
-			eq("86400"),
-			eq("86400"),
-			eq("LOCKED")
+	private void verifyIncreaseFailureCount() {
+		verify(userLoginLockRepository).increaseFailureCountAndLockIfThresholdReached(
+			LOGIN_ID,
+			UserLoginLockPolicy.MAX_LOGIN_FAILURE_COUNT,
+			Duration.ofHours(24),
+			Duration.ofHours(24)
 		);
 	}
 
