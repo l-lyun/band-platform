@@ -85,7 +85,7 @@ class UserLoginServiceTest {
 	void wrongPassword() {
 		saveUser("bandmaster", "bandmaster@example.com", RAW_PASSWORD);
 
-		assertThatThrownBy(() -> userLoginService.login(new UserLoginRequest("bandmaster", "wrongPassword123!")))
+		assertThatThrownBy(() -> userLoginService.login(new UserLoginRequest("bandmaster", "wrongpass123!")))
 			.isInstanceOfSatisfying(BusinessException.class, exception ->
 				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_INVALID_CREDENTIALS)
 			);

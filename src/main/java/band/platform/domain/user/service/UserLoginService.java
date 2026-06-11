@@ -1,5 +1,7 @@
 package band.platform.domain.user.service;
 
+import java.nio.charset.StandardCharsets;
+
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -19,6 +21,7 @@ public class UserLoginService {
 	private final PasswordEncoder passwordEncoder;
 
 	private static final String DUMMY_PASSWORD_HASH = "$2a$10$4Y9jNnLYxZVP2oBTnEafn.ZNtqzxdUgh2jgAHcz3lAK95RD3cJDBu";
+	private static final int BCRYPT_MAX_PASSWORD_BYTES = 72;
 
 	public UserLoginService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
 		this.userRepository = userRepository;
@@ -27,7 +30,7 @@ public class UserLoginService {
 
 	@Transactional(readOnly = true)
 	public UserLoginResponse login(UserLoginRequest request) {
-		if (request.exceedsBcryptByteLimit()) {
+		if (exceedsBcryptByteLimit(request.password())) {
 			throw new BusinessException(ErrorCode.COMMON_INVALID_INPUT);
 		}
 
@@ -57,6 +60,10 @@ public class UserLoginService {
 
 	private boolean verifyPassword(String rawPassword, String encodedPassword) {
 		return passwordEncoder.matches(rawPassword, encodedPassword);
+	}
+
+	private boolean exceedsBcryptByteLimit(String password) {
+		return password != null && password.getBytes(StandardCharsets.UTF_8).length > BCRYPT_MAX_PASSWORD_BYTES;
 	}
 
 }

@@ -13,11 +13,11 @@ public record UserSignupRequest(
 	String name,
 
 	@NotBlank
-	@Size(min = 4, max = 30)
+	@Size(min = 4, max = 12)
 	String loginId,
 
 	@NotBlank
-	@Size(min = 8, max = 72)
+	@Size(min = 8, max = 15)
 	String password,
 
 	@NotBlank

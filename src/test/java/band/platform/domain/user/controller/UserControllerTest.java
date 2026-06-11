@@ -109,7 +109,7 @@ class UserControllerTest {
 
 		mockMvc.perform(post("/api/users/sign-in")
 				.contentType(MediaType.APPLICATION_JSON)
-				.content(loginRequest("bandmaster", "wrongPassword123!")))
+				.content(loginRequest("bandmaster", "wrongpass123!")))
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.status").value(401))
 			.andExpect(jsonPath("$.code").value("A03"))
@@ -117,7 +117,7 @@ class UserControllerTest {
 	}
 
 	@Test
-	@DisplayName("비밀번호가 BCrypt 72바이트를 초과하면 E01 에러 응답을 반환한다")
+	@DisplayName("로그인 비밀번호가 15자를 초과하면 E01 에러 응답을 반환한다")
 	void passwordByteLengthExceeded() throws Exception {
 		mockMvc.perform(post("/api/users/sign-in")
 				.contentType(MediaType.APPLICATION_JSON)
