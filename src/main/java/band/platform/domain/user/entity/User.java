@@ -1,4 +1,4 @@
-package band.platform.domain.user;
+package band.platform.domain.user.entity;
 
 import band.platform.global.entity.BaseEntity;
 import jakarta.persistence.Column;
@@ -116,14 +116,6 @@ public class User extends BaseEntity {
 			privacyPolicyAgreed,
 			marketingPolicyAgreed
 		);
-	}
-
-	@PostLoad
-	@PrePersist
-	private void initializeStatus() {
-		if (this.status == null) {
-			this.status = UserStatus.ACTIVE;
-		}
 	}
 
 }

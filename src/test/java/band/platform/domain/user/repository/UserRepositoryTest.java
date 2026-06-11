@@ -1,4 +1,6 @@
-package band.platform.domain.user;
+package band.platform.domain.user.repository;
+
+import static org.assertj.core.api.Assertions.assertThat;
 
 import jakarta.persistence.EntityManager;
 import org.junit.jupiter.api.DisplayName;
@@ -7,7 +9,9 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
-import static org.assertj.core.api.Assertions.assertThat;
+import band.platform.domain.user.entity.Gender;
+import band.platform.domain.user.entity.User;
+import band.platform.domain.user.entity.UserStatus;
 
 @SpringBootTest
 @Transactional
