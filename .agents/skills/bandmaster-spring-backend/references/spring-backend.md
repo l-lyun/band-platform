@@ -24,21 +24,32 @@ global
 
 Domain code goes under `domain/<domain-name>`.
 
-Inside domain or feature packages, use layers only when useful:
+Inside each domain package, keep this MVC-oriented folder shape:
 
 ```text
-presentation
-application
-domain
-infrastructure
+domain/<domain-name>
+  entity
+  service
+  repository
+  controller
+  dto
 ```
+
+- `entity`: JPA entities, enums, value objects, and domain state rules.
+- `service`: use-case orchestration, transactions, duplicate checks, password encoding, and calls to repositories or infrastructure.
+- `repository`: Spring Data JPA repository interfaces for aggregate access.
+- `controller`: HTTP endpoint mapping and request validation entry points.
+- `dto`: request and response DTOs. Prefer Java records for immutable API payloads.
+
+Do not use the old `application` or `presentation` package names for new domain work.
 
 ## Rules
 
 - Controllers handle HTTP mapping and DTO validation only.
-- Application services own transactions and use-case orchestration.
+- Services own transactions and use-case orchestration.
 - Domain objects own state changes and invariants.
-- Infrastructure wraps persistence, external providers, mail, token libraries, and adapters.
+- Repository interfaces wrap persistence access.
+- Infrastructure-specific adapters, external providers, mail, token libraries, and Redis clients should live under a clearly named package only when the domain actually needs that boundary.
 - API DTOs are not JPA entities.
 - Prefer Java records for immutable request/response DTOs.
 - Do not introduce a shared abstraction until there is a real second use case.
