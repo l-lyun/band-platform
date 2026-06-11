@@ -18,3 +18,12 @@ spring:
     properties:
       hibernate:
         format_sql: true
+
+security:
+  jwt:
+    issuer: ${JWT_ISSUER:band-platform}
+    secret: ${JWT_SECRET:band-platform-local-development-secret-key-change-me}
+    access-token-ttl-seconds: ${JWT_ACCESS_TOKEN_TTL_SECONDS:1800}
+    refresh-token-ttl-seconds: ${JWT_REFRESH_TOKEN_TTL_SECONDS:1209600}
+    refresh-cookie-name: ${JWT_REFRESH_COOKIE_NAME:refreshToken}
+    refresh-cookie-secure: ${JWT_REFRESH_COOKIE_SECURE:false}
