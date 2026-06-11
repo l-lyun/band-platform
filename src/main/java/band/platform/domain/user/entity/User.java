@@ -118,12 +118,4 @@ public class User extends BaseEntity {
 		);
 	}
 
-	@PostLoad
-	@PrePersist
-	private void initializeStatus() {
-		if (this.status == null) {
-			this.status = UserStatus.ACTIVE;
-		}
-	}
-
 }
