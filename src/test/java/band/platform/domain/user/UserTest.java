@@ -22,13 +22,13 @@ class UserTest {
 			"img",
 			true,
 			true
-			);
+		);
 	}
-
 
 	@Test
 	void userCreateTest() {
 		Assertions.assertThat(user).isNotNull();
 		Assertions.assertThat(user.getId()).isNull();
+		Assertions.assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
 	}
 }
