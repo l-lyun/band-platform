@@ -42,7 +42,7 @@ class UserControllerTest {
 		when(userSignupService.signup(any()))
 			.thenReturn(new UserSignupResponse(1L, "bandmaster", "bandmaster@example.com"));
 
-		mockMvc.perform(post("/api/users")
+		mockMvc.perform(post("/api/users/sign-up")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(signupRequest("bandmaster", "bandmaster@example.com", true)))
 			.andExpect(status().isCreated())
@@ -59,7 +59,7 @@ class UserControllerTest {
 		when(userSignupService.signup(any()))
 			.thenThrow(new BusinessException(ErrorCode.USER_LOGIN_ID_DUPLICATED));
 
-		mockMvc.perform(post("/api/users")
+		mockMvc.perform(post("/api/users/sign-up")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(signupRequest("bandmaster", "other@example.com", true)))
 			.andExpect(status().isConflict())
@@ -71,7 +71,7 @@ class UserControllerTest {
 	@Test
 	@DisplayName("개인정보 필수 동의가 아니면 E01 에러 응답을 반환한다")
 	void privacyPolicyNotAgreed() throws Exception {
-		mockMvc.perform(post("/api/users")
+		mockMvc.perform(post("/api/users/sign-up")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(signupRequest("bandmaster", "bandmaster@example.com", false)))
 			.andExpect(status().isBadRequest())
