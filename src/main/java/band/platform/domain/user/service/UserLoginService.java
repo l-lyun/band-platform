@@ -18,6 +18,8 @@ public class UserLoginService {
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
 
+	private static final String DUMMY_PASSWORD_HASH = "$2a$10$4Y9jNnLYxZVP2oBTnEafn.ZNtqzxdUgh2jgAHcz3lAK95RD3cJDBu";
+
 	public UserLoginService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
 		this.userRepository = userRepository;
 		this.passwordEncoder = passwordEncoder;
@@ -25,14 +27,24 @@ public class UserLoginService {
 
 	@Transactional(readOnly = true)
 	public UserLoginResponse login(UserLoginRequest request) {
-		User user = userRepository.findByLoginId(request.loginId())
-			.orElseThrow(this::invalidCredentials);
+		if (request.exceedsBcryptByteLimit()) {
+			throw new BusinessException(ErrorCode.COMMON_INVALID_INPUT);
+		}
 
-		if (user.getStatus() != UserStatus.ACTIVE) {
+		User user = userRepository.findByLoginId(request.loginId())
+			.orElse(null);
+
+		if (user == null) {
+			verifyPassword(request.password(), DUMMY_PASSWORD_HASH);
 			throw invalidCredentials();
 		}
 
-		if (!passwordEncoder.matches(request.password(), user.getPassword())) {
+		if (user.getStatus() != UserStatus.ACTIVE) {
+			verifyPassword(request.password(), DUMMY_PASSWORD_HASH);
+			throw invalidCredentials();
+		}
+
+		if (!verifyPassword(request.password(), user.getPassword())) {
 			throw invalidCredentials();
 		}
 
@@ -41,6 +53,10 @@ public class UserLoginService {
 
 	private BusinessException invalidCredentials() {
 		return new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+	}
+
+	private boolean verifyPassword(String rawPassword, String encodedPassword) {
+		return passwordEncoder.matches(rawPassword, encodedPassword);
 	}
 
 }

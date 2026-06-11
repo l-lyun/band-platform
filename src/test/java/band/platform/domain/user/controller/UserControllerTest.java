@@ -116,6 +116,18 @@ class UserControllerTest {
 			.andExpect(jsonPath("$.message").value("아이디 또는 비밀번호가 올바르지 않습니다."));
 	}
 
+	@Test
+	@DisplayName("비밀번호가 BCrypt 72바이트를 초과하면 E01 에러 응답을 반환한다")
+	void passwordByteLengthExceeded() throws Exception {
+		mockMvc.perform(post("/api/users/sign-in")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(loginRequest("bandmaster", "가".repeat(25))))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("E01"))
+			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
+	}
+
 	private String signupRequest(String loginId, String email, boolean privacyPolicyAgreed) {
 		return """
 			{

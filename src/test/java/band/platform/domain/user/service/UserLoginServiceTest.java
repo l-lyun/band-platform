@@ -2,6 +2,13 @@ package band.platform.domain.user.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -57,6 +64,23 @@ class UserLoginServiceTest {
 	}
 
 	@Test
+	@DisplayName("존재하지 않는 로그인 아이디여도 더미 비밀번호 검증을 수행한다")
+	void unknownLoginIdVerifiesDummyPassword() {
+		UserRepository userRepository = mock(UserRepository.class);
+		PasswordEncoder passwordEncoder = mock(PasswordEncoder.class);
+		UserLoginService loginService = new UserLoginService(userRepository, passwordEncoder);
+		when(userRepository.findByLoginId("unknown")).thenReturn(Optional.empty());
+		when(passwordEncoder.matches(eq(RAW_PASSWORD), anyString())).thenReturn(false);
+
+		assertThatThrownBy(() -> loginService.login(new UserLoginRequest("unknown", RAW_PASSWORD)))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_INVALID_CREDENTIALS)
+			);
+
+		verify(passwordEncoder).matches(eq(RAW_PASSWORD), anyString());
+	}
+
+	@Test
 	@DisplayName("비밀번호가 일치하지 않으면 A03 예외를 던진다")
 	void wrongPassword() {
 		saveUser("bandmaster", "bandmaster@example.com", RAW_PASSWORD);
@@ -75,6 +99,17 @@ class UserLoginServiceTest {
 		assertThatThrownBy(() -> userLoginService.login(new UserLoginRequest("bandmaster", RAW_PASSWORD)))
 			.isInstanceOfSatisfying(BusinessException.class, exception ->
 				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_INVALID_CREDENTIALS)
+			);
+	}
+
+	@Test
+	@DisplayName("BCrypt 72바이트를 초과하는 비밀번호이면 E01 예외를 던진다")
+	void passwordByteLengthExceeded() {
+		String password = "가".repeat(25);
+
+		assertThatThrownBy(() -> userLoginService.login(new UserLoginRequest("bandmaster", password)))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_INVALID_INPUT)
 			);
 	}
 
