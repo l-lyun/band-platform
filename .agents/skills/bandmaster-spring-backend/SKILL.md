@@ -1,6 +1,6 @@
 ---
 name: bandmaster-spring-backend
-description: Implement, review, or plan BandMaster Java/Spring Boot backend work. Use for auth/login, member/profile APIs, common error handling, validation, JPA persistence, security, tests, and GitHub issue drafting in this repository.
+description: Implement, review, or plan BandMaster Java/Spring Boot backend work. Use for auth/login, member/profile APIs, common error handling, validation, JPA persistence, security, tests, GitHub issue drafting, and learning-oriented PR documentation in this repository.
 compatibility: Codex repo skill for a Java 21, Gradle, Spring Boot backend.
 ---
 
@@ -22,6 +22,7 @@ This skill turns BandMaster backend requests into small, verified Spring Boot ch
    - persistence/migration
    - test/verification
    - GitHub issue drafting
+   - PR/Notion learning documentation
 3. Load only the matching reference file below.
 4. Make the smallest change that completes the requested slice.
 5. Verify with the narrowest useful Gradle task. Use `./gradlew test` when the change touches shared behavior.
@@ -33,6 +34,7 @@ This skill turns BandMaster backend requests into small, verified Spring Boot ch
 - For package layout, service boundaries, JPA, migrations, and dependency choices, read [references/spring-backend.md](references/spring-backend.md).
 - For tests and local verification, read [references/testing.md](references/testing.md).
 - For GitHub issue drafts, read [references/github-issues.md](references/github-issues.md).
+- For PR/Notion learning documentation, read [references/pr-learning-docs.md](references/pr-learning-docs.md).
 
 ## Default Workflow
 
@@ -53,6 +55,14 @@ When drafting issues:
 3. Keep descriptions product-facing.
 4. Keep checklists implementation-sized, not overly detailed.
 5. Do not add a separate completion-condition section unless the user asks.
+
+When writing PR/Notion docs:
+
+1. Treat the document as the user's learning material, not a changelog.
+2. Prefer concise bullet points, numbered flows, and small code snippets.
+3. Explain core external tools and framework extension points used by the PR.
+4. Connect each concept to the actual implementation.
+5. Keep AI handoff notes at the bottom.
 
 ## Guardrails
 
