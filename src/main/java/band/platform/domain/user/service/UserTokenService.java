@@ -13,20 +13,14 @@ import band.platform.global.error.ErrorCode;
 import band.platform.global.security.JwtRefreshTokenClaims;
 import band.platform.global.security.JwtToken;
 import band.platform.global.security.JwtTokenProvider;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class UserTokenService {
 
 	private final JwtTokenProvider jwtTokenProvider;
 	private final UserRefreshTokenRepository userRefreshTokenRepository;
-
-	public UserTokenService(
-		JwtTokenProvider jwtTokenProvider,
-		UserRefreshTokenRepository userRefreshTokenRepository
-	) {
-		this.jwtTokenProvider = jwtTokenProvider;
-		this.userRefreshTokenRepository = userRefreshTokenRepository;
-	}
 
 	public UserTokenIssueResult issue(Long userId, String loginId) {
 		String refreshTokenId = newRefreshTokenId();

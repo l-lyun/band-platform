@@ -17,8 +17,10 @@ import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
+import lombok.RequiredArgsConstructor;
 
 @Component
+@RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 	private static final String BEARER_PREFIX = "Bearer ";
@@ -26,14 +28,6 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
 	private final JwtTokenProvider jwtTokenProvider;
 	private final SecurityErrorResponseWriter errorResponseWriter;
-
-	public JwtAuthenticationFilter(
-		JwtTokenProvider jwtTokenProvider,
-		SecurityErrorResponseWriter errorResponseWriter
-	) {
-		this.jwtTokenProvider = jwtTokenProvider;
-		this.errorResponseWriter = errorResponseWriter;
-	}
 
 	@Override
 	protected void doFilterInternal(

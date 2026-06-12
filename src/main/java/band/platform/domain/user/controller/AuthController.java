@@ -14,21 +14,15 @@ import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
 import band.platform.global.security.RefreshTokenCookieFactory;
 import jakarta.servlet.http.HttpServletRequest;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/auth")
+@RequiredArgsConstructor
 public class AuthController {
 
 	private final UserTokenService userTokenService;
 	private final RefreshTokenCookieFactory refreshTokenCookieFactory;
-
-	public AuthController(
-		UserTokenService userTokenService,
-		RefreshTokenCookieFactory refreshTokenCookieFactory
-	) {
-		this.userTokenService = userTokenService;
-		this.refreshTokenCookieFactory = refreshTokenCookieFactory;
-	}
 
 	@PostMapping("/reissue")
 	public ResponseEntity<ApiResult<TokenResponse>> reissue(HttpServletRequest request) {

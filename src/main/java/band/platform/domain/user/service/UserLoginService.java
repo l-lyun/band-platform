@@ -13,8 +13,10 @@ import band.platform.domain.user.entity.UserStatus;
 import band.platform.domain.user.repository.UserRepository;
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class UserLoginService {
 
 	private final UserRepository userRepository;
@@ -22,11 +24,6 @@ public class UserLoginService {
 
 	private static final String DUMMY_PASSWORD_HASH = "$2a$10$4Y9jNnLYxZVP2oBTnEafn.ZNtqzxdUgh2jgAHcz3lAK95RD3cJDBu";
 	private static final int BCRYPT_MAX_PASSWORD_BYTES = 72;
-
-	public UserLoginService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
-		this.userRepository = userRepository;
-		this.passwordEncoder = passwordEncoder;
-	}
 
 	@Transactional(readOnly = true)
 	public UserLoginResponse login(UserLoginRequest request) {

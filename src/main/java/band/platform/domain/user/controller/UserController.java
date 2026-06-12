@@ -18,27 +18,17 @@ import band.platform.domain.user.service.UserTokenService;
 import band.platform.global.ApiResult;
 import band.platform.global.security.RefreshTokenCookieFactory;
 import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
 
 @RestController
 @RequestMapping("/api/users")
+@RequiredArgsConstructor
 public class UserController {
 
 	private final UserSignupService userSignupService;
 	private final UserLoginService userLoginService;
 	private final UserTokenService userTokenService;
 	private final RefreshTokenCookieFactory refreshTokenCookieFactory;
-
-	public UserController(
-		UserSignupService userSignupService,
-		UserLoginService userLoginService,
-		UserTokenService userTokenService,
-		RefreshTokenCookieFactory refreshTokenCookieFactory
-	) {
-		this.userSignupService = userSignupService;
-		this.userLoginService = userLoginService;
-		this.userTokenService = userTokenService;
-		this.refreshTokenCookieFactory = refreshTokenCookieFactory;
-	}
 
 	@PostMapping("/sign-up")
 	public ResponseEntity<ApiResult<UserSignupResponse>> signup(

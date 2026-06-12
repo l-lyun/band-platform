@@ -16,6 +16,7 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import band.platform.domain.user.dto.TokenResponse;
 import band.platform.domain.user.dto.UserLoginResponse;
@@ -43,7 +44,7 @@ class UserControllerTest {
 		userSignupService = mock(UserSignupService.class);
 		userLoginService = mock(UserLoginService.class);
 		userTokenService = mock(UserTokenService.class);
-		refreshTokenCookieFactory = new RefreshTokenCookieFactory("refreshToken", false, "Lax");
+		refreshTokenCookieFactory = refreshTokenCookieFactory();
 		mockMvc = MockMvcBuilders
 			.standaloneSetup(new UserController(
 				userSignupService,
@@ -179,6 +180,14 @@ class UserControllerTest {
 				"password": "%s"
 			}
 			""".formatted(loginId, password);
+	}
+
+	private RefreshTokenCookieFactory refreshTokenCookieFactory() {
+		RefreshTokenCookieFactory refreshTokenCookieFactory = new RefreshTokenCookieFactory();
+		ReflectionTestUtils.setField(refreshTokenCookieFactory, "cookieName", "refreshToken");
+		ReflectionTestUtils.setField(refreshTokenCookieFactory, "secure", false);
+		ReflectionTestUtils.setField(refreshTokenCookieFactory, "sameSite", "Lax");
+		return refreshTokenCookieFactory;
 	}
 
 }

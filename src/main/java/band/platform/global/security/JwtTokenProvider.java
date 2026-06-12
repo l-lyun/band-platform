@@ -15,9 +15,11 @@ import org.springframework.stereotype.Component;
 
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
+import lombok.RequiredArgsConstructor;
 import tools.jackson.databind.ObjectMapper;
 
 @Component
+@RequiredArgsConstructor
 public class JwtTokenProvider {
 
 	private static final String HMAC_SHA256 = "HmacSHA256";
@@ -26,26 +28,18 @@ public class JwtTokenProvider {
 
 	private final ObjectMapper objectMapper;
 	private final Clock clock;
-	private final String issuer;
-	private final byte[] secret;
-	private final long accessTokenTtlSeconds;
-	private final long refreshTokenTtlSeconds;
 
-	public JwtTokenProvider(
-		ObjectMapper objectMapper,
-		Clock clock,
-		@Value("${security.jwt.issuer}") String issuer,
-		@Value("${security.jwt.secret}") String secret,
-		@Value("${security.jwt.access-token-ttl-seconds}") long accessTokenTtlSeconds,
-		@Value("${security.jwt.refresh-token-ttl-seconds}") long refreshTokenTtlSeconds
-	) {
-		this.objectMapper = objectMapper;
-		this.clock = clock;
-		this.issuer = issuer;
-		this.secret = secret.getBytes(StandardCharsets.UTF_8);
-		this.accessTokenTtlSeconds = accessTokenTtlSeconds;
-		this.refreshTokenTtlSeconds = refreshTokenTtlSeconds;
-	}
+	@Value("${security.jwt.issuer}")
+	private String issuer;
+
+	@Value("${security.jwt.secret}")
+	private String secret;
+
+	@Value("${security.jwt.access-token-ttl-seconds}")
+	private long accessTokenTtlSeconds;
+
+	@Value("${security.jwt.refresh-token-ttl-seconds}")
+	private long refreshTokenTtlSeconds;
 
 	public JwtToken issueAccessToken(Long userId, String loginId) {
 		return issueToken(userId, loginId, null, JwtTokenType.ACCESS, accessTokenTtlSeconds);
@@ -143,7 +137,7 @@ public class JwtTokenProvider {
 	private String sign(String value) {
 		try {
 			Mac mac = Mac.getInstance(HMAC_SHA256);
-			mac.init(new SecretKeySpec(secret, HMAC_SHA256));
+			mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), HMAC_SHA256));
 			return BASE64_URL_ENCODER.encodeToString(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
 		} catch (Exception exception) {
 			throw new IllegalStateException("Failed to sign JWT.", exception);

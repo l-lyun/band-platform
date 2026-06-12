@@ -17,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import band.platform.domain.user.dto.UserTokenIssueResult;
 import band.platform.domain.user.repository.UserRefreshTokenRepository;
@@ -39,14 +40,7 @@ class UserTokenServiceTest {
 	@BeforeEach
 	void setUp() {
 		MockitoAnnotations.openMocks(this);
-		JwtTokenProvider jwtTokenProvider = new JwtTokenProvider(
-			new ObjectMapper(),
-			Clock.fixed(Instant.parse("2026-06-11T00:00:00Z"), ZoneOffset.UTC),
-			"band-platform",
-			"test-secret-key-for-jwt-token-provider",
-			1800,
-			1209600
-		);
+		JwtTokenProvider jwtTokenProvider = createJwtTokenProvider();
 		userTokenService = new UserTokenService(jwtTokenProvider, userRefreshTokenRepository);
 	}
 
@@ -98,6 +92,18 @@ class UserTokenServiceTest {
 		userTokenService.logout(loginResult.refreshToken());
 
 		verify(userRefreshTokenRepository).delete(eq(USER_ID), any());
+	}
+
+	private JwtTokenProvider createJwtTokenProvider() {
+		JwtTokenProvider jwtTokenProvider = new JwtTokenProvider(
+			new ObjectMapper(),
+			Clock.fixed(Instant.parse("2026-06-11T00:00:00Z"), ZoneOffset.UTC)
+		);
+		ReflectionTestUtils.setField(jwtTokenProvider, "issuer", "band-platform");
+		ReflectionTestUtils.setField(jwtTokenProvider, "secret", "test-secret-key-for-jwt-token-provider");
+		ReflectionTestUtils.setField(jwtTokenProvider, "accessTokenTtlSeconds", 1800L);
+		ReflectionTestUtils.setField(jwtTokenProvider, "refreshTokenTtlSeconds", 1209600L);
+		return jwtTokenProvider;
 	}
 
 }

@@ -8,23 +8,20 @@ import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
 
 import jakarta.servlet.http.Cookie;
+import lombok.RequiredArgsConstructor;
 
 @Component
+@RequiredArgsConstructor
 public class RefreshTokenCookieFactory {
 
-	private final String cookieName;
-	private final boolean secure;
-	private final String sameSite;
+	@Value("${security.jwt.refresh-cookie-name}")
+	private String cookieName;
 
-	public RefreshTokenCookieFactory(
-		@Value("${security.jwt.refresh-cookie-name}") String cookieName,
-		@Value("${security.jwt.refresh-cookie-secure}") boolean secure,
-		@Value("${security.jwt.refresh-cookie-same-site}") String sameSite
-	) {
-		this.cookieName = cookieName;
-		this.secure = secure;
-		this.sameSite = sameSite;
-	}
+	@Value("${security.jwt.refresh-cookie-secure}")
+	private boolean secure;
+
+	@Value("${security.jwt.refresh-cookie-same-site}")
+	private String sameSite;
 
 	public ResponseCookie create(String refreshToken, long maxAgeSeconds) {
 		return baseCookie()
