@@ -7,3 +7,15 @@ spring:
   jpa:
     hibernate:
       ddl-auto: create-drop
+
+security:
+  jwt:
+    issuer: band-platform
+    secret: band-platform-test-secret-key-change-me
+    access-token-ttl-seconds: 1800
+    refresh-token-ttl-seconds: 1209600
+    refresh-cookie-name: refreshToken
+    refresh-cookie-secure: false
+    refresh-cookie-same-site: Lax
+  cors:
+    allowed-origins: http://localhost:3000,http://localhost:5173

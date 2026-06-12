@@ -9,14 +9,13 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
+import lombok.RequiredArgsConstructor;
+
 @Component
+@RequiredArgsConstructor
 public class JsonAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
 	private final SecurityErrorResponseWriter errorResponseWriter;
-
-	public JsonAuthenticationEntryPoint(SecurityErrorResponseWriter errorResponseWriter) {
-		this.errorResponseWriter = errorResponseWriter;
-	}
 
 	@Override
 	public void commence(

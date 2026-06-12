@@ -9,14 +9,13 @@ import org.springframework.stereotype.Component;
 
 import java.io.IOException;
 
+import lombok.RequiredArgsConstructor;
+
 @Component
+@RequiredArgsConstructor
 public class JsonAccessDeniedHandler implements AccessDeniedHandler {
 
 	private final SecurityErrorResponseWriter errorResponseWriter;
-
-	public JsonAccessDeniedHandler(SecurityErrorResponseWriter errorResponseWriter) {
-		this.errorResponseWriter = errorResponseWriter;
-	}
 
 	@Override
 	public void handle(

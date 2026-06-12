@@ -10,17 +10,14 @@ import band.platform.domain.user.entity.User;
 import band.platform.domain.user.repository.UserRepository;
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
+import lombok.RequiredArgsConstructor;
 
 @Service
+@RequiredArgsConstructor
 public class UserSignupService {
 
 	private final UserRepository userRepository;
 	private final PasswordEncoder passwordEncoder;
-
-	public UserSignupService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
-		this.userRepository = userRepository;
-		this.passwordEncoder = passwordEncoder;
-	}
 
 	@Transactional
 	public UserSignupResponse signup(UserSignupRequest request) {
