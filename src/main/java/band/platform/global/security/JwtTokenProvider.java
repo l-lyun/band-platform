@@ -121,7 +121,7 @@ public class JwtTokenProvider {
 		try {
 			return BASE64_URL_ENCODER.encodeToString(objectMapper.writeValueAsBytes(value));
 		} catch (Exception exception) {
-			throw new IllegalStateException("Failed to write JWT JSON.", exception);
+			throw new BusinessException(ErrorCode.COMMON_INTERNAL_SERVER_ERROR, exception);
 		}
 	}
 
@@ -140,7 +140,7 @@ public class JwtTokenProvider {
 			mac.init(new SecretKeySpec(secret.getBytes(StandardCharsets.UTF_8), HMAC_SHA256));
 			return BASE64_URL_ENCODER.encodeToString(mac.doFinal(value.getBytes(StandardCharsets.UTF_8)));
 		} catch (Exception exception) {
-			throw new IllegalStateException("Failed to sign JWT.", exception);
+			throw new BusinessException(ErrorCode.COMMON_INTERNAL_SERVER_ERROR, exception);
 		}
 	}
 
