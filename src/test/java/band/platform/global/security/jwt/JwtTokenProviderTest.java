@@ -1,4 +1,4 @@
-package band.platform.global.security;
+package band.platform.global.security.jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

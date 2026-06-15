@@ -1,4 +1,4 @@
-package band.platform.global.security;
+package band.platform.global.security.jwt;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;

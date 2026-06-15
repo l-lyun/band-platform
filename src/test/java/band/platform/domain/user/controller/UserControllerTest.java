@@ -28,7 +28,7 @@ import band.platform.domain.user.service.UserTokenService;
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
 import band.platform.global.error.GlobalExceptionHandler;
-import band.platform.global.security.RefreshTokenCookieFactory;
+import band.platform.global.security.cookie.RefreshTokenCookieFactory;
 
 class UserControllerTest {
 

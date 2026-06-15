@@ -1,4 +1,4 @@
-package band.platform.global.security;
+package band.platform.global.security.jwt;
 
 import java.io.IOException;
 import java.util.List;
@@ -13,6 +13,8 @@ import org.springframework.util.AntPathMatcher;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import band.platform.global.error.BusinessException;
+import band.platform.global.security.config.PublicEndpoints;
+import band.platform.global.security.handler.SecurityErrorResponseWriter;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

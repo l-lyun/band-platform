@@ -1,4 +1,4 @@
-package band.platform.global.security;
+package band.platform.global.security.jwt;
 
 public enum JwtTokenType {
 

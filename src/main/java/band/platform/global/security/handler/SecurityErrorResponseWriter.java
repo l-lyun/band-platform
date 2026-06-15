@@ -1,4 +1,4 @@
-package band.platform.global.security;
+package band.platform.global.security.handler;
 
 import band.platform.global.error.ErrorCode;
 import band.platform.global.error.ErrorResponse;
