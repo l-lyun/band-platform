@@ -97,6 +97,20 @@ class AuthControllerTest {
 		verify(userTokenService).logout("invalid-refresh-token");
 	}
 
+	@Test
+	@DisplayName("로그아웃 중 내부 오류가 발생하면 E04 에러 응답을 반환한다")
+	void logoutWithInternalError() throws Exception {
+		doThrow(new BusinessException(ErrorCode.COMMON_INTERNAL_SERVER_ERROR))
+			.when(userTokenService).logout("refresh-token");
+
+		mockMvc.perform(post("/api/auth/logout")
+				.cookie(new jakarta.servlet.http.Cookie("refreshToken", "refresh-token")))
+			.andExpect(status().isInternalServerError())
+			.andExpect(jsonPath("$.code").value("E04"));
+
+		verify(userTokenService).logout("refresh-token");
+	}
+
 	private RefreshTokenCookieFactory refreshTokenCookieFactory() {
 		RefreshTokenCookieFactory refreshTokenCookieFactory = new RefreshTokenCookieFactory();
 		ReflectionTestUtils.setField(refreshTokenCookieFactory, "cookieName", "refreshToken");

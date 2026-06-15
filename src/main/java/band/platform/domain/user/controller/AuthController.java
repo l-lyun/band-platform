@@ -56,9 +56,16 @@ public class AuthController {
 	private void deleteRefreshTokenIfValid(String refreshToken) {
 		try {
 			userTokenService.logout(refreshToken);
-		} catch (BusinessException ignored) {
-			// HttpOnly cookies must be expired by the server even when token deletion fails.
+		} catch (BusinessException exception) {
+			if (!isIgnorableLogoutError(exception.getErrorCode())) {
+				throw exception;
+			}
 		}
+	}
+
+	private boolean isIgnorableLogoutError(ErrorCode errorCode) {
+		return errorCode == ErrorCode.AUTH_TOKEN_INVALID
+			|| errorCode == ErrorCode.AUTH_TOKEN_EXPIRED;
 	}
 
 }
