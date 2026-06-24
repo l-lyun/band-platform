@@ -83,10 +83,14 @@ class RedisSocialOAuthStateRepositoryTest {
 
 		Optional<SocialOAuthState> consumed = redisSocialOAuthStateRepository.consume(SocialProvider.NAVER, STATE);
 		Optional<SocialOAuthState> consumedAgain = redisSocialOAuthStateRepository.consume(SocialProvider.NAVER, STATE);
-		Optional<SocialOAuthState> kakaoState = redisSocialOAuthStateRepository.consume(SocialProvider.KAKAO, STATE);
 
 		assertThat(consumed).contains(new SocialOAuthState(STATE, NONCE));
 		assertThat(consumedAgain).isEmpty();
+		assertThat(redisValues).doesNotContainKey(STATE_KEY);
+		assertThat(redisValues).containsEntry(KAKAO_STATE_KEY, "kakao-nonce");
+
+		Optional<SocialOAuthState> kakaoState = redisSocialOAuthStateRepository.consume(SocialProvider.KAKAO, STATE);
+
 		assertThat(kakaoState).contains(new SocialOAuthState(STATE, "kakao-nonce"));
 		assertThat(redisValues).doesNotContainKeys(STATE_KEY, KAKAO_STATE_KEY);
 	}
@@ -118,14 +122,6 @@ class RedisSocialOAuthStateRepositoryTest {
 			.isInstanceOfSatisfying(BusinessException.class, exception ->
 				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_SOCIAL_PROVIDER_UNSUPPORTED)
 			);
-	}
-
-	@Test
-	@DisplayName("state 소비 스크립트는 nonce 조회 후 state 키를 삭제한다")
-	void consumeScript() {
-		assertThat(RedisSocialOAuthStateRepository.CONSUME_OAUTH_STATE_SCRIPT_TEXT)
-			.contains("redis.call('GET', stateKey)")
-			.contains("redis.call('DEL', stateKey)");
 	}
 
 	private void givenRedisBackedBy(Map<String, String> redisValues) {
