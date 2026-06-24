@@ -19,9 +19,11 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import band.platform.domain.user.dto.TokenResponse;
+import band.platform.domain.user.dto.FindLoginIdResponse;
 import band.platform.domain.user.dto.UserLoginResponse;
 import band.platform.domain.user.dto.UserSignupResponse;
 import band.platform.domain.user.dto.UserTokenIssueResult;
+import band.platform.domain.user.service.UserFindLoginIdService;
 import band.platform.domain.user.service.UserLoginService;
 import band.platform.domain.user.service.UserSignupService;
 import band.platform.domain.user.service.UserTokenService;
@@ -36,6 +38,7 @@ class UserControllerTest {
 
 	private UserSignupService userSignupService;
 	private UserLoginService userLoginService;
+	private UserFindLoginIdService userFindLoginIdService;
 	private UserTokenService userTokenService;
 	private RefreshTokenCookieFactory refreshTokenCookieFactory;
 
@@ -43,12 +46,14 @@ class UserControllerTest {
 	void setUp() {
 		userSignupService = mock(UserSignupService.class);
 		userLoginService = mock(UserLoginService.class);
+		userFindLoginIdService = mock(UserFindLoginIdService.class);
 		userTokenService = mock(UserTokenService.class);
 		refreshTokenCookieFactory = refreshTokenCookieFactory();
 		mockMvc = MockMvcBuilders
 			.standaloneSetup(new UserController(
 				userSignupService,
 				userLoginService,
+				userFindLoginIdService,
 				userTokenService,
 				refreshTokenCookieFactory
 			))
@@ -144,6 +149,48 @@ class UserControllerTest {
 	}
 
 	@Test
+	@DisplayName("가입된 이메일로 아이디 찾기를 요청하면 로그인 아이디를 반환한다")
+	void findLoginId() throws Exception {
+		when(userFindLoginIdService.findLoginId(any()))
+			.thenReturn(new FindLoginIdResponse("bandmaster"));
+
+		mockMvc.perform(post("/api/users/find-login-id")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(findLoginIdRequest("bandmaster@example.com")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value(200))
+			.andExpect(jsonPath("$.message").value("요청이 성공했습니다."))
+			.andExpect(jsonPath("$.data.loginId").value("bandmaster"));
+	}
+
+	@Test
+	@DisplayName("가입되지 않은 이메일로 아이디 찾기를 요청하면 E02 에러 응답을 반환한다")
+	void findLoginIdUnknownEmail() throws Exception {
+		when(userFindLoginIdService.findLoginId(any()))
+			.thenThrow(new BusinessException(ErrorCode.COMMON_NOT_FOUND));
+
+		mockMvc.perform(post("/api/users/find-login-id")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(findLoginIdRequest("unknown@example.com")))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.status").value(404))
+			.andExpect(jsonPath("$.code").value("E02"))
+			.andExpect(jsonPath("$.message").value("요청한 리소스를 찾을 수 없습니다."));
+	}
+
+	@Test
+	@DisplayName("이메일 형식이 아니면 아이디 찾기 요청은 E01 에러 응답을 반환한다")
+	void findLoginIdInvalidEmail() throws Exception {
+		mockMvc.perform(post("/api/users/find-login-id")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(findLoginIdRequest("invalid-email")))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("E01"))
+			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
+	}
+
+	@Test
 	@DisplayName("로그인 비밀번호가 BCrypt 72바이트를 초과하면 E01 에러 응답을 반환한다")
 	void passwordByteLengthExceeded() throws Exception {
 		mockMvc.perform(post("/api/users/sign-in")
@@ -180,6 +227,14 @@ class UserControllerTest {
 				"password": "%s"
 			}
 			""".formatted(loginId, password);
+	}
+
+	private String findLoginIdRequest(String email) {
+		return """
+			{
+				"email": "%s"
+			}
+			""".formatted(email);
 	}
 
 	private RefreshTokenCookieFactory refreshTokenCookieFactory() {
