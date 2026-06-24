@@ -9,6 +9,8 @@ import java.util.List;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.annotation.AnnotationConfigApplicationContext;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import band.platform.domain.user.entity.SocialProvider;
 import band.platform.global.error.BusinessException;
@@ -35,7 +37,27 @@ class SocialOAuthPropertiesTest {
 	}
 
 	@Test
-	@DisplayName("제공자 필수 설정값이 비어 있으면 바인딩 설정을 거부한다")
+	@DisplayName("초기화 시 바인딩된 제공자 필수 설정값이 비어 있으면 설정을 거부한다")
+	void validateBoundProvidersOnInitialization() {
+		SocialOAuthProperties properties = new SocialOAuthProperties();
+		SocialOAuthProperties.Provider kakao = validProvider();
+		kakao.setClientId(" ");
+		EnumMap<SocialProvider, SocialOAuthProperties.Provider> providers = new EnumMap<>(SocialProvider.class);
+		providers.put(SocialProvider.KAKAO, kakao);
+		ReflectionTestUtils.setField(properties, "providers", providers);
+
+		try (AnnotationConfigApplicationContext context = new AnnotationConfigApplicationContext()) {
+			context.refresh();
+
+			assertThatThrownBy(() ->
+				context.getAutowireCapableBeanFactory().initializeBean(properties, "socialOAuthProperties")
+			).hasRootCauseInstanceOf(IllegalArgumentException.class)
+				.satisfies(exception -> assertThat(rootCause(exception)).hasMessageContaining("kakao.client-id"));
+		}
+	}
+
+	@Test
+	@DisplayName("제공자 필수 설정값이 비어 있으면 setter 바인딩 설정을 거부한다")
 	void blankProviderRequiredValue() {
 		SocialOAuthProperties properties = new SocialOAuthProperties();
 		SocialOAuthProperties.Provider kakao = validProvider();
@@ -46,6 +68,21 @@ class SocialOAuthPropertiesTest {
 		assertThatThrownBy(() -> properties.setProviders(providers))
 			.isInstanceOf(IllegalArgumentException.class)
 			.hasMessageContaining("kakao.client-id");
+	}
+
+	@Test
+	@DisplayName("조회 시 제공자 필수 설정값이 비어 있으면 설정을 거부한다")
+	void providerValidatesRequiredValueAtLookupTime() {
+		SocialOAuthProperties properties = new SocialOAuthProperties();
+		SocialOAuthProperties.Provider naver = validProvider();
+		naver.setTokenUri(" ");
+		EnumMap<SocialProvider, SocialOAuthProperties.Provider> providers = new EnumMap<>(SocialProvider.class);
+		providers.put(SocialProvider.NAVER, naver);
+		ReflectionTestUtils.setField(properties, "providers", providers);
+
+		assertThatThrownBy(() -> properties.provider(SocialProvider.NAVER))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("naver.token-uri");
 	}
 
 	@Test
@@ -80,6 +117,14 @@ class SocialOAuthPropertiesTest {
 		provider.setUserInfoUri("https://kapi.kakao.com/v2/user/me");
 		provider.setScopes(List.of("profile_nickname"));
 		return provider;
+	}
+
+	private Throwable rootCause(Throwable throwable) {
+		Throwable rootCause = throwable;
+		while (rootCause.getCause() != null) {
+			rootCause = rootCause.getCause();
+		}
+		return rootCause;
 	}
 
 }

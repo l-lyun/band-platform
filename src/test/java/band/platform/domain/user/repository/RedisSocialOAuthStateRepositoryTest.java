@@ -2,12 +2,17 @@ package band.platform.domain.user.repository;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 
 import org.junit.jupiter.api.DisplayName;
@@ -32,6 +37,7 @@ class RedisSocialOAuthStateRepositoryTest {
 	private static final String STATE = "oauth-state";
 	private static final String NONCE = "oauth-nonce";
 	private static final String STATE_KEY = "oauth:state:naver:" + STATE;
+	private static final String KAKAO_STATE_KEY = "oauth:state:kakao:" + STATE;
 	private static final Duration STATE_TTL = Duration.ofMinutes(10);
 
 	@Mock
@@ -64,6 +70,25 @@ class RedisSocialOAuthStateRepositoryTest {
 		Optional<SocialOAuthState> oauthState = redisSocialOAuthStateRepository.consume(SocialProvider.NAVER, STATE);
 
 		assertThat(oauthState).contains(new SocialOAuthState(STATE, NONCE));
+	}
+
+	@Test
+	@DisplayName("제공자별 state는 저장 후 한 번만 소비되고 다른 제공자의 같은 state는 유지된다")
+	void consumeOnceProviderBoundState() {
+		Map<String, String> redisValues = new HashMap<>();
+		givenRedisBackedBy(redisValues);
+
+		redisSocialOAuthStateRepository.save(SocialProvider.NAVER, new SocialOAuthState(STATE, NONCE), STATE_TTL);
+		redisSocialOAuthStateRepository.save(SocialProvider.KAKAO, new SocialOAuthState(STATE, "kakao-nonce"), STATE_TTL);
+
+		Optional<SocialOAuthState> consumed = redisSocialOAuthStateRepository.consume(SocialProvider.NAVER, STATE);
+		Optional<SocialOAuthState> consumedAgain = redisSocialOAuthStateRepository.consume(SocialProvider.NAVER, STATE);
+		Optional<SocialOAuthState> kakaoState = redisSocialOAuthStateRepository.consume(SocialProvider.KAKAO, STATE);
+
+		assertThat(consumed).contains(new SocialOAuthState(STATE, NONCE));
+		assertThat(consumedAgain).isEmpty();
+		assertThat(kakaoState).contains(new SocialOAuthState(STATE, "kakao-nonce"));
+		assertThat(redisValues).doesNotContainKeys(STATE_KEY, KAKAO_STATE_KEY);
 	}
 
 	@Test
@@ -101,6 +126,21 @@ class RedisSocialOAuthStateRepositoryTest {
 		assertThat(RedisSocialOAuthStateRepository.CONSUME_OAUTH_STATE_SCRIPT_TEXT)
 			.contains("redis.call('GET', stateKey)")
 			.contains("redis.call('DEL', stateKey)");
+	}
+
+	private void givenRedisBackedBy(Map<String, String> redisValues) {
+		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+		doAnswer(invocation -> {
+			redisValues.put(invocation.getArgument(0), invocation.getArgument(1));
+			return null;
+		}).when(valueOperations).set(anyString(), anyString(), any(Duration.class));
+		when(redisTemplate.execute(
+			ArgumentMatchers.<RedisScript<String>>any(),
+			ArgumentMatchers.<List<String>>any()
+		)).thenAnswer(invocation -> {
+			List<String> keys = invocation.getArgument(1);
+			return redisValues.remove(keys.getFirst());
+		});
 	}
 
 }
