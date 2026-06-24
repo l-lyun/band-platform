@@ -125,6 +125,8 @@ public class NaverSocialLoginClient implements SocialLoginClient {
 			throw new BusinessException(ErrorCode.AUTH_SOCIAL_PROVIDER_UNAVAILABLE);
 		} catch (RestClientException exception) {
 			throw new BusinessException(ErrorCode.AUTH_SOCIAL_PROVIDER_RESPONSE_INVALID);
+		} catch (IllegalArgumentException exception) {
+			throw new BusinessException(ErrorCode.AUTH_SOCIAL_CONFIGURATION_INVALID);
 		}
 	}
 

@@ -177,6 +177,20 @@ class NaverSocialLoginClientTest {
 		server.verify();
 	}
 
+	@Test
+	@DisplayName("네이버 프로필 URI 형식이 잘못되면 토큰 성공 후 A13 에러로 변환한다")
+	void malformedUserInfoUri() {
+		RestClient.Builder builder = RestClient.builder();
+		MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+		SocialOAuthProperties properties = properties();
+		properties.provider(SocialProvider.NAVER).setUserInfoUri("http://[invalid");
+		NaverSocialLoginClient client = new NaverSocialLoginClient(builder.build(), properties);
+		expectTokenSuccess(server);
+
+		assertBusinessError(client, ErrorCode.AUTH_SOCIAL_CONFIGURATION_INVALID);
+		server.verify();
+	}
+
 	private static void expectTokenSuccess(MockRestServiceServer server) {
 		expectTokenSuccess(server, """
 			{
