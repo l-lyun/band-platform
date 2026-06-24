@@ -17,6 +17,11 @@ public enum ErrorCode {
 	AUTH_TOKEN_INVALID("A06", HttpStatus.UNAUTHORIZED, "인증 토큰이 올바르지 않습니다."),
 	AUTH_CODE_INVALID("A07", HttpStatus.BAD_REQUEST, "인증 코드가 올바르지 않습니다."),
 	AUTH_CODE_EXPIRED("A08", HttpStatus.BAD_REQUEST, "인증 코드가 만료되었습니다."),
+	AUTH_SOCIAL_PROVIDER_UNSUPPORTED("A09", HttpStatus.BAD_REQUEST, "지원하지 않는 소셜 로그인 제공자입니다."),
+	AUTH_OAUTH_STATE_INVALID("A10", HttpStatus.BAD_REQUEST, "소셜 로그인 상태 값이 올바르지 않습니다."),
+	AUTH_REDIRECT_URI_INVALID("A11", HttpStatus.BAD_REQUEST, "소셜 로그인 리다이렉트 URI가 올바르지 않습니다."),
+	AUTH_SOCIAL_USER_INFO_INVALID("A12", HttpStatus.BAD_REQUEST, "소셜 로그인 사용자 정보가 올바르지 않습니다."),
+	AUTH_SOCIAL_CONFIGURATION_INVALID("A13", HttpStatus.INTERNAL_SERVER_ERROR, "소셜 로그인 설정이 올바르지 않습니다."),
 
 	USER_LOGIN_ID_DUPLICATED("U01", HttpStatus.CONFLICT, "이미 사용 중인 아이디입니다."),
 	USER_EMAIL_DUPLICATED("U02", HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다.");
