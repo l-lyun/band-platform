@@ -27,6 +27,13 @@ This skill turns BandMaster backend requests into small, verified Spring Boot ch
 4. Make the smallest change that completes the requested slice.
 5. Verify with the narrowest useful Gradle task. Use `./gradlew test` when the change touches shared behavior.
 
+## OMO Planning Gate
+
+- Use OMO as a planning gate, not a replacement for this short router or its focused references.
+- Broad, cross-cutting, ambiguous, multi-thread, or high-risk backend work should go through `.omo/plans/<slug>.md` before implementation.
+- If a plan already exists, read it before editing and follow its scoped task, evidence, and cleanup requirements.
+- For narrow single-slice work, keep using the reference router below and the smallest useful verification.
+
 ## Reference Router
 
 - For common responses, error codes, validation, and exception handling, read [references/api-errors.md](references/api-errors.md).
