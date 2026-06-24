@@ -20,10 +20,7 @@ class SocialOAuthPropertiesTest {
 	@DisplayName("제공자별 OAuth 설정을 조회한다")
 	void provider() {
 		SocialOAuthProperties properties = new SocialOAuthProperties();
-		SocialOAuthProperties.Provider kakao = new SocialOAuthProperties.Provider();
-		kakao.setClientId("kakao-client-id");
-		kakao.setClientSecret("kakao-client-secret");
-		kakao.setScopes(List.of("profile_nickname"));
+		SocialOAuthProperties.Provider kakao = validProvider();
 		EnumMap<SocialProvider, SocialOAuthProperties.Provider> providers = new EnumMap<>(SocialProvider.class);
 		providers.put(SocialProvider.KAKAO, kakao);
 		properties.setProviders(providers);
@@ -35,6 +32,20 @@ class SocialOAuthPropertiesTest {
 		assertThat(provider.getClientId()).isEqualTo("kakao-client-id");
 		assertThat(provider.hasClientSecret()).isTrue();
 		assertThat(provider.getScopes()).containsExactly("profile_nickname");
+	}
+
+	@Test
+	@DisplayName("제공자 필수 설정값이 비어 있으면 바인딩 설정을 거부한다")
+	void blankProviderRequiredValue() {
+		SocialOAuthProperties properties = new SocialOAuthProperties();
+		SocialOAuthProperties.Provider kakao = validProvider();
+		kakao.setClientId(" ");
+		EnumMap<SocialProvider, SocialOAuthProperties.Provider> providers = new EnumMap<>(SocialProvider.class);
+		providers.put(SocialProvider.KAKAO, kakao);
+
+		assertThatThrownBy(() -> properties.setProviders(providers))
+			.isInstanceOf(IllegalArgumentException.class)
+			.hasMessageContaining("kakao.client-id");
 	}
 
 	@Test
@@ -57,6 +68,18 @@ class SocialOAuthPropertiesTest {
 			.isInstanceOfSatisfying(BusinessException.class, exception ->
 				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_SOCIAL_PROVIDER_UNSUPPORTED)
 			);
+	}
+
+	private SocialOAuthProperties.Provider validProvider() {
+		SocialOAuthProperties.Provider provider = new SocialOAuthProperties.Provider();
+		provider.setClientId("kakao-client-id");
+		provider.setClientSecret("kakao-client-secret");
+		provider.setRedirectUri("http://localhost:3000/callback/kakao");
+		provider.setAuthorizationUri("https://kauth.kakao.com/oauth/authorize");
+		provider.setTokenUri("https://kauth.kakao.com/oauth/token");
+		provider.setUserInfoUri("https://kapi.kakao.com/v2/user/me");
+		provider.setScopes(List.of("profile_nickname"));
+		return provider;
 	}
 
 }

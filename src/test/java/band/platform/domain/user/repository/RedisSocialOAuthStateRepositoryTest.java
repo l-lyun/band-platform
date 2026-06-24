@@ -21,6 +21,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.RedisScript;
 
+import band.platform.domain.user.entity.SocialProvider;
 import band.platform.domain.user.social.SocialOAuthState;
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
@@ -30,7 +31,7 @@ class RedisSocialOAuthStateRepositoryTest {
 
 	private static final String STATE = "oauth-state";
 	private static final String NONCE = "oauth-nonce";
-	private static final String STATE_KEY = "oauth:state:" + STATE;
+	private static final String STATE_KEY = "oauth:state:naver:" + STATE;
 	private static final Duration STATE_TTL = Duration.ofMinutes(10);
 
 	@Mock
@@ -43,45 +44,54 @@ class RedisSocialOAuthStateRepositoryTest {
 	private RedisSocialOAuthStateRepository redisSocialOAuthStateRepository;
 
 	@Test
-	@DisplayName("OAuth state와 nonce를 TTL과 함께 저장한다")
+	@DisplayName("제공자별 OAuth state와 nonce를 TTL과 함께 저장한다")
 	void save() {
 		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
 
-		redisSocialOAuthStateRepository.save(new SocialOAuthState(STATE, NONCE), STATE_TTL);
+		redisSocialOAuthStateRepository.save(SocialProvider.NAVER, new SocialOAuthState(STATE, NONCE), STATE_TTL);
 
 		verify(valueOperations).set(STATE_KEY, NONCE, STATE_TTL);
 	}
 
 	@Test
-	@DisplayName("저장된 state를 소비하면 nonce를 반환한다")
+	@DisplayName("같은 제공자에 저장된 state를 소비하면 nonce를 반환한다")
 	void consume() {
 		when(redisTemplate.execute(
 			ArgumentMatchers.<RedisScript<String>>any(),
 			eq(List.of(STATE_KEY))
 		)).thenReturn(NONCE);
 
-		Optional<SocialOAuthState> oauthState = redisSocialOAuthStateRepository.consume(STATE);
+		Optional<SocialOAuthState> oauthState = redisSocialOAuthStateRepository.consume(SocialProvider.NAVER, STATE);
 
 		assertThat(oauthState).contains(new SocialOAuthState(STATE, NONCE));
 	}
 
 	@Test
-	@DisplayName("저장된 state가 없으면 빈 Optional을 반환한다")
+	@DisplayName("같은 제공자에 저장된 state가 없으면 빈 Optional을 반환한다")
 	void consumeMissingState() {
 		when(redisTemplate.execute(
 			ArgumentMatchers.<RedisScript<String>>any(),
 			eq(List.of(STATE_KEY))
 		)).thenReturn(null);
 
-		assertThat(redisSocialOAuthStateRepository.consume(STATE)).isEmpty();
+		assertThat(redisSocialOAuthStateRepository.consume(SocialProvider.NAVER, STATE)).isEmpty();
 	}
 
 	@Test
 	@DisplayName("state가 비어 있으면 A10 에러를 반환한다")
 	void consumeBlankState() {
-		assertThatThrownBy(() -> redisSocialOAuthStateRepository.consume(" "))
+		assertThatThrownBy(() -> redisSocialOAuthStateRepository.consume(SocialProvider.NAVER, " "))
 			.isInstanceOfSatisfying(BusinessException.class, exception ->
 				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_OAUTH_STATE_INVALID)
+			);
+	}
+
+	@Test
+	@DisplayName("LOCAL 제공자로 state를 소비하면 A09 에러를 반환한다")
+	void consumeLocalProvider() {
+		assertThatThrownBy(() -> redisSocialOAuthStateRepository.consume(SocialProvider.LOCAL, STATE))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_SOCIAL_PROVIDER_UNSUPPORTED)
 			);
 	}
 

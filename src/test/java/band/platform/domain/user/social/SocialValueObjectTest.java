@@ -13,19 +13,21 @@ import band.platform.global.error.ErrorCode;
 class SocialValueObjectTest {
 
 	@Test
-	@DisplayName("인가 코드 요청 값은 제공자와 code, state, redirectUri를 가진다")
+	@DisplayName("인가 코드 요청 값은 제공자와 code, state, redirectUri, nonce를 가진다")
 	void authorizationCode() {
 		SocialAuthorizationCode authorizationCode = new SocialAuthorizationCode(
 			SocialProvider.NAVER,
 			"authorization-code",
 			"state",
-			"http://localhost:3000/callback/naver"
+			"http://localhost:3000/callback/naver",
+			"nonce"
 		);
 
 		assertThat(authorizationCode.provider()).isEqualTo(SocialProvider.NAVER);
 		assertThat(authorizationCode.code()).isEqualTo("authorization-code");
 		assertThat(authorizationCode.state()).isEqualTo("state");
 		assertThat(authorizationCode.redirectUri()).isEqualTo("http://localhost:3000/callback/naver");
+		assertThat(authorizationCode.nonce()).isEqualTo("nonce");
 	}
 
 	@Test
@@ -98,7 +100,29 @@ class SocialValueObjectTest {
 	}
 
 	@Test
+	@DisplayName("nonce가 필요 없는 제공자는 인가 코드 nonce를 비워둘 수 있다")
+	void authorizationCodeWithoutNonce() {
+		SocialAuthorizationCode authorizationCode = new SocialAuthorizationCode(
+			SocialProvider.KAKAO,
+			"authorization-code",
+			"state",
+			"http://localhost:3000/callback/kakao"
+		);
+
+		assertThat(authorizationCode.nonce()).isNull();
+	}
+
+	@Test
 	@DisplayName("nonce가 비어 있으면 A10 에러를 반환한다")
+	void blankAuthorizationCodeNonce() {
+		assertThatThrownBy(() -> new SocialAuthorizationCode(SocialProvider.NAVER, "code", "state", "redirect-uri", " "))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_OAUTH_STATE_INVALID)
+			);
+	}
+
+	@Test
+	@DisplayName("OAuth state nonce가 비어 있으면 A10 에러를 반환한다")
 	void blankNonce() {
 		assertThatThrownBy(() -> new SocialOAuthState("state", " "))
 			.isInstanceOfSatisfying(BusinessException.class, exception ->

@@ -6,7 +6,10 @@ import java.util.Optional;
 
 import org.springframework.stereotype.Service;
 
+import band.platform.domain.user.entity.SocialProvider;
 import band.platform.domain.user.repository.SocialOAuthStateRepository;
+import band.platform.global.error.BusinessException;
+import band.platform.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -20,20 +23,28 @@ public class SocialOAuthStateService {
 	private final SocialOAuthStateRepository socialOAuthStateRepository;
 	private final SocialOAuthProperties socialOAuthProperties;
 
-	public SocialOAuthState issue() {
+	public SocialOAuthState issue(SocialProvider provider) {
+		requireSocialProvider(provider);
 		SocialOAuthState oauthState = new SocialOAuthState(randomToken(), randomToken());
-		socialOAuthStateRepository.save(oauthState, socialOAuthProperties.getStateTtl());
+		socialOAuthStateRepository.save(provider, oauthState, socialOAuthProperties.getStateTtl());
 		return oauthState;
 	}
 
-	public Optional<SocialOAuthState> consume(String state) {
-		return socialOAuthStateRepository.consume(state);
+	public Optional<SocialOAuthState> consume(SocialProvider provider, String state) {
+		requireSocialProvider(provider);
+		return socialOAuthStateRepository.consume(provider, state);
 	}
 
 	private String randomToken() {
 		byte[] bytes = new byte[TOKEN_BYTE_LENGTH];
 		SECURE_RANDOM.nextBytes(bytes);
 		return TOKEN_ENCODER.encodeToString(bytes);
+	}
+
+	private void requireSocialProvider(SocialProvider provider) {
+		if (provider == null || provider == SocialProvider.LOCAL) {
+			throw new BusinessException(ErrorCode.AUTH_SOCIAL_PROVIDER_UNSUPPORTED);
+		}
 	}
 
 }

@@ -10,14 +10,25 @@ public record SocialAuthorizationCode(
 	SocialProvider provider,
 	String code,
 	String state,
-	String redirectUri
+	String redirectUri,
+	String nonce
 ) {
+
+	public SocialAuthorizationCode(
+		SocialProvider provider,
+		String code,
+		String state,
+		String redirectUri
+	) {
+		this(provider, code, state, redirectUri, null);
+	}
 
 	public SocialAuthorizationCode {
 		requireSocialProvider(provider);
 		requireText(code, ErrorCode.AUTH_CODE_INVALID);
 		requireText(state, ErrorCode.AUTH_OAUTH_STATE_INVALID);
 		requireText(redirectUri, ErrorCode.AUTH_REDIRECT_URI_INVALID);
+		requireTextIfPresent(nonce, ErrorCode.AUTH_OAUTH_STATE_INVALID);
 	}
 
 	private static void requireSocialProvider(SocialProvider provider) {
@@ -28,6 +39,12 @@ public record SocialAuthorizationCode(
 
 	private static void requireText(String value, ErrorCode errorCode) {
 		if (!StringUtils.hasText(value)) {
+			throw new BusinessException(errorCode);
+		}
+	}
+
+	private static void requireTextIfPresent(String value, ErrorCode errorCode) {
+		if (value != null && !StringUtils.hasText(value)) {
 			throw new BusinessException(errorCode);
 		}
 	}
