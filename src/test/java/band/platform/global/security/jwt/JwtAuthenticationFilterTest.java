@@ -1,4 +1,4 @@
-package band.platform.global.security;
+package band.platform.global.security.jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -16,6 +16,7 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import band.platform.global.security.handler.SecurityErrorResponseWriter;
 import tools.jackson.databind.ObjectMapper;
 
 class JwtAuthenticationFilterTest {

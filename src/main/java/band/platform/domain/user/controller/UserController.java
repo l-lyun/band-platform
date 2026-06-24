@@ -16,7 +16,7 @@ import band.platform.domain.user.service.UserLoginService;
 import band.platform.domain.user.service.UserSignupService;
 import band.platform.domain.user.service.UserTokenService;
 import band.platform.global.ApiResult;
-import band.platform.global.security.RefreshTokenCookieFactory;
+import band.platform.global.security.cookie.RefreshTokenCookieFactory;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 

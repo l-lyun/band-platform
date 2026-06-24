@@ -24,7 +24,7 @@ import band.platform.domain.user.service.UserTokenService;
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
 import band.platform.global.error.GlobalExceptionHandler;
-import band.platform.global.security.RefreshTokenCookieFactory;
+import band.platform.global.security.cookie.RefreshTokenCookieFactory;
 
 class AuthControllerTest {
 
@@ -95,6 +95,20 @@ class AuthControllerTest {
 			.andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Max-Age=0")));
 
 		verify(userTokenService).logout("invalid-refresh-token");
+	}
+
+	@Test
+	@DisplayName("로그아웃 중 내부 오류가 발생하면 E04 에러 응답을 반환한다")
+	void logoutWithInternalError() throws Exception {
+		doThrow(new BusinessException(ErrorCode.COMMON_INTERNAL_SERVER_ERROR))
+			.when(userTokenService).logout("refresh-token");
+
+		mockMvc.perform(post("/api/auth/logout")
+				.cookie(new jakarta.servlet.http.Cookie("refreshToken", "refresh-token")))
+			.andExpect(status().isInternalServerError())
+			.andExpect(jsonPath("$.code").value("E04"));
+
+		verify(userTokenService).logout("refresh-token");
 	}
 
 	private RefreshTokenCookieFactory refreshTokenCookieFactory() {

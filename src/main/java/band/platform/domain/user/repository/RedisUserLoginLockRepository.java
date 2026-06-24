@@ -8,6 +8,8 @@ import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import band.platform.global.error.BusinessException;
+import band.platform.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
 
 @Repository
@@ -67,7 +69,7 @@ public class RedisUserLoginLockRepository implements UserLoginLockRepository {
 			LOCK_VALUE
 		);
 		if (failureCount == null) {
-			throw new IllegalStateException("Redis login failure script result is null.");
+			throw new BusinessException(ErrorCode.COMMON_INTERNAL_SERVER_ERROR);
 		}
 
 		return failureCount.intValue();

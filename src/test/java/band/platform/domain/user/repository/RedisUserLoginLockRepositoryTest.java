@@ -13,7 +13,11 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 
+import band.platform.global.error.BusinessException;
+import band.platform.global.error.ErrorCode;
+
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -54,6 +58,22 @@ class RedisUserLoginLockRepositoryTest {
 		assertThat(RedisUserLoginLockRepository.RECORD_FAILURE_SCRIPT_TEXT)
 			.contains("redis.call('DEL', failureKey)")
 			.contains("redis.call('SET', lockKey, lockValue, 'EX', lockTtlSeconds)");
+	}
+
+	@Test
+	@DisplayName("로그인 실패 스크립트 결과가 없으면 E04 예외를 던진다")
+	void increaseFailureCountNullResult() {
+		givenScriptResult(null);
+
+		assertThatThrownBy(() -> redisUserLoginLockRepository.increaseFailureCountAndLockIfThresholdReached(
+			LOGIN_ID,
+			5,
+			Duration.ofHours(24),
+			Duration.ofHours(24)
+		))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_INTERNAL_SERVER_ERROR)
+			);
 	}
 
 	@Test

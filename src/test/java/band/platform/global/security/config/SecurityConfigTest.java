@@ -1,4 +1,4 @@
-package band.platform.global.security;
+package band.platform.global.security.config;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

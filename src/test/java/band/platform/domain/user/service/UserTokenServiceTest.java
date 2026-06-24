@@ -23,7 +23,7 @@ import band.platform.domain.user.dto.UserTokenIssueResult;
 import band.platform.domain.user.repository.UserRefreshTokenRepository;
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
-import band.platform.global.security.JwtTokenProvider;
+import band.platform.global.security.jwt.JwtTokenProvider;
 import tools.jackson.databind.ObjectMapper;
 
 class UserTokenServiceTest {

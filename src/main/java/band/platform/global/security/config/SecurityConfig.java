@@ -1,4 +1,4 @@
-package band.platform.global.security;
+package band.platform.global.security.config;
 
 import java.time.Clock;
 import java.util.Arrays;
@@ -19,6 +19,10 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
+
+import band.platform.global.security.handler.JsonAccessDeniedHandler;
+import band.platform.global.security.handler.JsonAuthenticationEntryPoint;
+import band.platform.global.security.jwt.JwtAuthenticationFilter;
 
 @Configuration
 public class SecurityConfig {

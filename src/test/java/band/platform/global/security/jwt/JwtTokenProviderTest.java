@@ -1,4 +1,4 @@
-package band.platform.global.security;
+package band.platform.global.security.jwt;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -69,12 +69,30 @@ class JwtTokenProviderTest {
 			);
 	}
 
+	@Test
+	@DisplayName("토큰 서명 중 내부 오류가 발생하면 E04 예외를 던진다")
+	void signInternalError() {
+		JwtTokenProvider invalidJwtTokenProvider = createJwtTokenProviderWithoutSecret();
+
+		assertThatThrownBy(() -> invalidJwtTokenProvider.issueAccessToken(1L, "bandmaster"))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_INTERNAL_SERVER_ERROR)
+			);
+	}
+
 	private static JwtTokenProvider createJwtTokenProvider() {
 		JwtTokenProvider jwtTokenProvider = new JwtTokenProvider(new ObjectMapper(), FIXED_CLOCK);
 		ReflectionTestUtils.setField(jwtTokenProvider, "issuer", "band-platform");
 		ReflectionTestUtils.setField(jwtTokenProvider, "secret", "test-secret-key-for-jwt-token-provider");
 		ReflectionTestUtils.setField(jwtTokenProvider, "accessTokenTtlSeconds", 1800L);
 		ReflectionTestUtils.setField(jwtTokenProvider, "refreshTokenTtlSeconds", 1209600L);
+		return jwtTokenProvider;
+	}
+
+	private static JwtTokenProvider createJwtTokenProviderWithoutSecret() {
+		JwtTokenProvider jwtTokenProvider = new JwtTokenProvider(new ObjectMapper(), FIXED_CLOCK);
+		ReflectionTestUtils.setField(jwtTokenProvider, "issuer", "band-platform");
+		ReflectionTestUtils.setField(jwtTokenProvider, "accessTokenTtlSeconds", 1800L);
 		return jwtTokenProvider;
 	}
 
