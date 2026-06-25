@@ -22,6 +22,8 @@ public enum ErrorCode {
 	AUTH_REDIRECT_URI_INVALID("A11", HttpStatus.BAD_REQUEST, "소셜 로그인 리다이렉트 URI가 올바르지 않습니다."),
 	AUTH_SOCIAL_USER_INFO_INVALID("A12", HttpStatus.BAD_REQUEST, "소셜 로그인 사용자 정보가 올바르지 않습니다."),
 	AUTH_SOCIAL_CONFIGURATION_INVALID("A13", HttpStatus.INTERNAL_SERVER_ERROR, "소셜 로그인 설정이 올바르지 않습니다."),
+	AUTH_SOCIAL_PROVIDER_RESPONSE_INVALID("A14", HttpStatus.BAD_GATEWAY, "소셜 로그인 제공자 응답이 올바르지 않습니다."),
+	AUTH_SOCIAL_PROVIDER_UNAVAILABLE("A15", HttpStatus.BAD_GATEWAY, "소셜 로그인 제공자와 통신할 수 없습니다."),
 
 	USER_LOGIN_ID_DUPLICATED("U01", HttpStatus.CONFLICT, "이미 사용 중인 아이디입니다."),
 	USER_EMAIL_DUPLICATED("U02", HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다.");
