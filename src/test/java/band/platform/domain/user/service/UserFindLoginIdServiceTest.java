@@ -8,12 +8,14 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import band.platform.domain.user.dto.FindLoginIdRequest;
 import band.platform.domain.user.dto.FindLoginIdResponse;
 import band.platform.domain.user.entity.Gender;
 import band.platform.domain.user.entity.User;
+import band.platform.domain.user.entity.UserStatus;
 import band.platform.domain.user.repository.UserRepository;
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
@@ -50,6 +52,20 @@ class UserFindLoginIdServiceTest {
 	void unknownEmail() {
 		assertThatThrownBy(() -> userFindLoginIdService.findLoginId(
 			new FindLoginIdRequest("unknown@example.com")
+		))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_NOT_FOUND)
+			);
+	}
+
+	@Test
+	@DisplayName("탈퇴한 회원의 이메일이면 E02 예외를 던진다")
+	void withdrawnUserEmail() {
+		User user = saveUser("bandmaster", "bandmaster@example.com");
+		ReflectionTestUtils.setField(user, "status", UserStatus.WITHDRAWN);
+
+		assertThatThrownBy(() -> userFindLoginIdService.findLoginId(
+			new FindLoginIdRequest("bandmaster@example.com")
 		))
 			.isInstanceOfSatisfying(BusinessException.class, exception ->
 				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_NOT_FOUND)
