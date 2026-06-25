@@ -3,7 +3,8 @@ package band.platform.global.security.config;
 public final class PublicEndpoints {
 
 	public static final String[] USER_POST_ENDPOINTS = {
-		"/api/users/sign-*"
+		"/api/users/sign-*",
+		"/api/users/find-login-id"
 	};
 
 	public static final String[] AUTH_POST_ENDPOINTS = {
