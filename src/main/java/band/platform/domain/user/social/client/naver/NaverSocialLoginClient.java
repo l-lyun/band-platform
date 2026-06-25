@@ -1,14 +1,14 @@
 package band.platform.domain.user.social.client.naver;
 
-import java.net.URI;
-
+import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import band.platform.domain.user.entity.SocialProvider;
 import band.platform.domain.user.social.SocialAuthorizationCode;
@@ -73,19 +73,18 @@ public class NaverSocialLoginClient implements SocialLoginClient {
 		SocialAuthorizationCode authorizationCode
 	) {
 		try {
-			URI tokenUri = UriComponentsBuilder.fromUriString(properties.getTokenUri())
-				.queryParam("grant_type", GRANT_TYPE)
-				.queryParam("client_id", properties.getClientId())
-				.queryParam("client_secret", properties.getClientSecret())
-				.queryParam("redirect_uri", authorizationCode.redirectUri())
-				.queryParam("code", authorizationCode.code())
-				.queryParam("state", authorizationCode.state())
-				.build()
-				.encode()
-				.toUri();
+			MultiValueMap<String, String> tokenRequest = new LinkedMultiValueMap<>();
+			tokenRequest.add("grant_type", GRANT_TYPE);
+			tokenRequest.add("client_id", properties.getClientId());
+			tokenRequest.add("client_secret", properties.getClientSecret());
+			tokenRequest.add("redirect_uri", authorizationCode.redirectUri());
+			tokenRequest.add("code", authorizationCode.code());
+			tokenRequest.add("state", authorizationCode.state());
 
-			return restClient.get()
-				.uri(tokenUri)
+			return restClient.post()
+				.uri(properties.getTokenUri())
+				.contentType(MediaType.APPLICATION_FORM_URLENCODED)
+				.body(tokenRequest)
 				.retrieve()
 				.body(NaverTokenResponse.class);
 		} catch (RestClientResponseException exception) {

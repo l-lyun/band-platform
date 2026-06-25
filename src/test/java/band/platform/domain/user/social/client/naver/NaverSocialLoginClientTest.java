@@ -2,11 +2,10 @@ package band.platform.domain.user.social.client.naver;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.hamcrest.Matchers.startsWith;
+import static org.springframework.test.web.client.match.MockRestRequestMatchers.content;
 import static org.springframework.test.web.client.ExpectedCount.once;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.header;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.method;
-import static org.springframework.test.web.client.match.MockRestRequestMatchers.queryParam;
 import static org.springframework.test.web.client.match.MockRestRequestMatchers.requestTo;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withServerError;
 import static org.springframework.test.web.client.response.MockRestResponseCreators.withStatus;
@@ -20,6 +19,8 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
@@ -203,20 +204,18 @@ class NaverSocialLoginClientTest {
 	}
 
 	private static void expectTokenSuccess(MockRestServiceServer server, String responseBody) {
-		server.expect(once(), requestTo(startsWith(TOKEN_URI)))
-			.andExpect(method(HttpMethod.GET))
-			.andExpect(queryParam("grant_type", "authorization_code"))
-			.andExpect(queryParam("client_id", "naver-client-id"))
-			.andExpect(queryParam("client_secret", "naver-client-secret"))
-			.andExpect(queryParam("redirect_uri", "https://band.example.com/oauth/naver/callback"))
-			.andExpect(queryParam("code", "authorization-code"))
-			.andExpect(queryParam("state", "oauth-state"))
+		server.expect(once(), requestTo(TOKEN_URI))
+			.andExpect(method(HttpMethod.POST))
+			.andExpect(content().contentType(MediaType.APPLICATION_FORM_URLENCODED))
+			.andExpect(content().formData(tokenRequestForm()))
 			.andRespond(withSuccess(responseBody, MediaType.APPLICATION_JSON));
 	}
 
 	private static void expectTokenError(MockRestServiceServer server, HttpStatus status) {
-		server.expect(once(), requestTo(startsWith(TOKEN_URI)))
-			.andExpect(method(HttpMethod.GET))
+		server.expect(once(), requestTo(TOKEN_URI))
+			.andExpect(method(HttpMethod.POST))
+			.andExpect(content().contentType(MediaType.APPLICATION_FORM_URLENCODED))
+			.andExpect(content().formData(tokenRequestForm()))
 			.andRespond(withStatus(status).body("""
 				{
 				  "error": "invalid_request",
@@ -226,9 +225,22 @@ class NaverSocialLoginClientTest {
 	}
 
 	private static void expectTokenServerError(MockRestServiceServer server) {
-		server.expect(once(), requestTo(startsWith(TOKEN_URI)))
-			.andExpect(method(HttpMethod.GET))
+		server.expect(once(), requestTo(TOKEN_URI))
+			.andExpect(method(HttpMethod.POST))
+			.andExpect(content().contentType(MediaType.APPLICATION_FORM_URLENCODED))
+			.andExpect(content().formData(tokenRequestForm()))
 			.andRespond(withServerError());
+	}
+
+	private static MultiValueMap<String, String> tokenRequestForm() {
+		MultiValueMap<String, String> form = new LinkedMultiValueMap<>();
+		form.add("grant_type", "authorization_code");
+		form.add("client_id", "naver-client-id");
+		form.add("client_secret", "naver-client-secret");
+		form.add("redirect_uri", "https://band.example.com/oauth/naver/callback");
+		form.add("code", "authorization-code");
+		form.add("state", "oauth-state");
+		return form;
 	}
 
 	private static void assertBusinessError(NaverSocialLoginClient client, ErrorCode errorCode) {
