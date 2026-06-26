@@ -6,6 +6,7 @@ import java.util.Map;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.springframework.web.client.RestClient;
 
 import band.platform.domain.user.entity.SocialProvider;
 import band.platform.global.error.BusinessException;
@@ -13,6 +14,11 @@ import band.platform.global.error.ErrorCode;
 
 @Configuration(proxyBeanMethods = false)
 class SocialLoginClientConfiguration {
+
+	@Bean
+	RestClient.Builder socialProviderRestClientBuilder() {
+		return RestClient.builder();
+	}
 
 	@Bean
 	SocialLoginClientRegistry socialLoginClientRegistry(List<SocialLoginClient> clients) {

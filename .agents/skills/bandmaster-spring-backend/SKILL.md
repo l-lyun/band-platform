@@ -15,6 +15,7 @@ This skill turns BandMaster backend requests into small, verified Spring Boot ch
    - `src/main/resources/application.yml`
    - existing `src/main/java` package layout
    - `git status --short`
+   - active branch/worktree path
 2. Identify the task type:
    - API/error foundation
    - auth/login
@@ -80,3 +81,4 @@ When writing PR/Notion docs:
 - Keep auth security conservative; flag product requirements that expose accounts or secrets.
 - Never log passwords, reset codes, refresh tokens, OAuth tokens, or provider secrets.
 - If a requested behavior conflicts with the references, follow the user request but call out the tradeoff briefly.
+- Prefer the currently opened repository worktree for implementation so the user can inspect changes in IntelliJ. Create a separate git worktree only when the user explicitly asks for one or when the current worktree state makes direct work unsafe, and explain that before proceeding.
