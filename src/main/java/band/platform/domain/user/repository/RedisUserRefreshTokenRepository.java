@@ -2,6 +2,7 @@ package band.platform.domain.user.repository;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -56,6 +57,15 @@ public class RedisUserRefreshTokenRepository implements UserRefreshTokenReposito
 	@Override
 	public void delete(Long userId, String tokenId) {
 		redisTemplate.delete(refreshTokenKey(userId, tokenId));
+	}
+
+	@Override
+	public void deleteAll(Long userId) {
+		Set<String> keys = redisTemplate.keys(REFRESH_TOKEN_KEY_PREFIX + userId + ":*");
+		if (keys == null || keys.isEmpty()) {
+			return;
+		}
+		redisTemplate.delete(keys);
 	}
 
 	private String refreshTokenKey(Long userId, String tokenId) {

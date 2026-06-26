@@ -7,6 +7,7 @@ import static org.mockito.Mockito.when;
 
 import java.time.Duration;
 import java.util.List;
+import java.util.Set;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -94,6 +95,16 @@ class RedisUserRefreshTokenRepositoryTest {
 		redisUserRefreshTokenRepository.delete(USER_ID, OLD_TOKEN_ID);
 
 		verify(redisTemplate).delete(OLD_KEY);
+	}
+
+	@Test
+	@DisplayName("비밀번호 재설정 시 회원의 모든 리프레시 토큰 키를 삭제한다")
+	void deleteAll() {
+		when(redisTemplate.keys("auth:refresh:" + USER_ID + ":*")).thenReturn(Set.of(OLD_KEY, NEW_KEY));
+
+		redisUserRefreshTokenRepository.deleteAll(USER_ID);
+
+		verify(redisTemplate).delete(Set.of(OLD_KEY, NEW_KEY));
 	}
 
 }
