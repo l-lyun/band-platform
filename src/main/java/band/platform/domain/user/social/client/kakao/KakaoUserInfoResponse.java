@@ -59,9 +59,19 @@ record KakaoUserInfoResponse(
 	@JsonIgnoreProperties(ignoreUnknown = true)
 	record KakaoAccount(
 		String email,
+		@JsonProperty("is_email_valid")
+		Boolean emailValid,
+		@JsonProperty("is_email_verified")
+		Boolean emailVerified,
 		String name,
 		Profile profile
 	) {
+		public String email() {
+			if (Boolean.TRUE.equals(emailValid) && Boolean.TRUE.equals(emailVerified)) {
+				return email;
+			}
+			return null;
+		}
 	}
 
 	@JsonIgnoreProperties(ignoreUnknown = true)

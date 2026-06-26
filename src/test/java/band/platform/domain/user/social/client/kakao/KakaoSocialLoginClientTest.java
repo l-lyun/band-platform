@@ -36,13 +36,14 @@ class KakaoSocialLoginClientTest {
 
 	private static final String TOKEN_URI = "https://kauth.kakao.com/oauth/token";
 	private static final String USER_INFO_URI = "https://kapi.kakao.com/v2/user/me";
+	private static final String USER_INFO_URI_WITH_SECURE_RESOURCE = USER_INFO_URI + "?secure_resource=true";
 
 	@Test
 	@DisplayName("카카오 인가 코드로 토큰과 프로필을 조회해 소셜 사용자 정보로 변환한다")
 	void fetchUserInfo() {
 		Fixture fixture = fixture();
 		expectTokenSuccess(fixture.server());
-		fixture.server().expect(once(), requestTo(USER_INFO_URI))
+		fixture.server().expect(once(), requestTo(USER_INFO_URI_WITH_SECURE_RESOURCE))
 			.andExpect(method(HttpMethod.GET))
 			.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer fake-access-token"))
 			.andRespond(withSuccess("""
@@ -50,6 +51,8 @@ class KakaoSocialLoginClientTest {
 				  "id": 123456789,
 				  "kakao_account": {
 				    "email": "member@example.com",
+				    "is_email_valid": true,
+				    "is_email_verified": true,
 				    "name": "카카오회원",
 				    "profile": {
 				      "nickname": "ignored",
@@ -74,7 +77,7 @@ class KakaoSocialLoginClientTest {
 	void fallbackNickname() {
 		Fixture fixture = fixture();
 		expectTokenSuccess(fixture.server());
-		fixture.server().expect(once(), requestTo(USER_INFO_URI))
+		fixture.server().expect(once(), requestTo(USER_INFO_URI_WITH_SECURE_RESOURCE))
 			.andExpect(method(HttpMethod.GET))
 			.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer fake-access-token"))
 			.andRespond(withSuccess("""
@@ -101,7 +104,7 @@ class KakaoSocialLoginClientTest {
 	void optionalProfileFields() {
 		Fixture fixture = fixture();
 		expectTokenSuccess(fixture.server());
-		fixture.server().expect(once(), requestTo(USER_INFO_URI))
+		fixture.server().expect(once(), requestTo(USER_INFO_URI_WITH_SECURE_RESOURCE))
 			.andExpect(method(HttpMethod.GET))
 			.andRespond(withSuccess("""
 				{
@@ -115,6 +118,56 @@ class KakaoSocialLoginClientTest {
 		assertThat(userInfo.email()).isNull();
 		assertThat(userInfo.name()).isNull();
 		assertThat(userInfo.profileImageUrl()).isNull();
+		fixture.server().verify();
+	}
+
+	@Test
+	@DisplayName("카카오 이메일이 유효하지 않으면 이메일을 null로 변환한다")
+	void invalidEmail() {
+		Fixture fixture = fixture();
+		expectTokenSuccess(fixture.server());
+		fixture.server().expect(once(), requestTo(USER_INFO_URI_WITH_SECURE_RESOURCE))
+			.andExpect(method(HttpMethod.GET))
+			.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer fake-access-token"))
+			.andRespond(withSuccess("""
+				{
+				  "id": 123456789,
+				  "kakao_account": {
+				    "email": "member@example.com",
+				    "is_email_valid": false,
+				    "is_email_verified": true
+				  }
+				}
+				""", MediaType.APPLICATION_JSON));
+
+		SocialUserInfo userInfo = fixture.client().fetchUserInfo(authorizationCode(SocialProvider.KAKAO));
+
+		assertThat(userInfo.email()).isNull();
+		fixture.server().verify();
+	}
+
+	@Test
+	@DisplayName("카카오 이메일이 인증되지 않았으면 이메일을 null로 변환한다")
+	void unverifiedEmail() {
+		Fixture fixture = fixture();
+		expectTokenSuccess(fixture.server());
+		fixture.server().expect(once(), requestTo(USER_INFO_URI_WITH_SECURE_RESOURCE))
+			.andExpect(method(HttpMethod.GET))
+			.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer fake-access-token"))
+			.andRespond(withSuccess("""
+				{
+				  "id": 123456789,
+				  "kakao_account": {
+				    "email": "member@example.com",
+				    "is_email_valid": true,
+				    "is_email_verified": false
+				  }
+				}
+				""", MediaType.APPLICATION_JSON));
+
+		SocialUserInfo userInfo = fixture.client().fetchUserInfo(authorizationCode(SocialProvider.KAKAO));
+
+		assertThat(userInfo.email()).isNull();
 		fixture.server().verify();
 	}
 
@@ -143,7 +196,7 @@ class KakaoSocialLoginClientTest {
 	void profileProviderUnavailable() {
 		Fixture fixture = fixture();
 		expectTokenSuccess(fixture.server());
-		fixture.server().expect(once(), requestTo(USER_INFO_URI))
+		fixture.server().expect(once(), requestTo(USER_INFO_URI_WITH_SECURE_RESOURCE))
 			.andExpect(method(HttpMethod.GET))
 			.andRespond(withServerError());
 
@@ -152,11 +205,30 @@ class KakaoSocialLoginClientTest {
 	}
 
 	@Test
+	@DisplayName("카카오 프로필 API가 400을 반환하면 A14 에러로 변환한다")
+	void profileBadRequest() {
+		Fixture fixture = fixture();
+		expectTokenSuccess(fixture.server());
+		fixture.server().expect(once(), requestTo(USER_INFO_URI_WITH_SECURE_RESOURCE))
+			.andExpect(method(HttpMethod.GET))
+			.andExpect(header(HttpHeaders.AUTHORIZATION, "Bearer fake-access-token"))
+			.andRespond(withStatus(HttpStatus.BAD_REQUEST).body("""
+				{
+				  "code": -2,
+				  "msg": "invalid request"
+				}
+				""").contentType(MediaType.APPLICATION_JSON));
+
+		assertBusinessError(fixture.client(), ErrorCode.AUTH_SOCIAL_PROVIDER_RESPONSE_INVALID);
+		fixture.server().verify();
+	}
+
+	@Test
 	@DisplayName("카카오 provider 통신 예외가 발생하면 A15 에러로 변환한다")
 	void providerTimeout() {
 		Fixture fixture = fixture();
 		expectTokenSuccess(fixture.server());
-		fixture.server().expect(once(), requestTo(USER_INFO_URI))
+		fixture.server().expect(once(), requestTo(USER_INFO_URI_WITH_SECURE_RESOURCE))
 			.andExpect(method(HttpMethod.GET))
 			.andRespond(request -> {
 				throw new ResourceAccessException("Read timed out");
@@ -198,7 +270,7 @@ class KakaoSocialLoginClientTest {
 	void missingProviderSubject() {
 		Fixture fixture = fixture();
 		expectTokenSuccess(fixture.server());
-		fixture.server().expect(once(), requestTo(USER_INFO_URI))
+		fixture.server().expect(once(), requestTo(USER_INFO_URI_WITH_SECURE_RESOURCE))
 			.andExpect(method(HttpMethod.GET))
 			.andRespond(withSuccess("""
 				{

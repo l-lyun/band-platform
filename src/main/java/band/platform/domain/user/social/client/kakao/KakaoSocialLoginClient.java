@@ -1,5 +1,7 @@
 package band.platform.domain.user.social.client.kakao;
 
+import java.net.URI;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -10,6 +12,7 @@ import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestClientResponseException;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import band.platform.domain.user.entity.SocialProvider;
 import band.platform.domain.user.social.SocialAuthorizationCode;
@@ -72,7 +75,7 @@ public class KakaoSocialLoginClient implements SocialLoginClient {
 	private KakaoTokenResponse requestAccessToken(
 		SocialOAuthProperties.Provider properties,
 		SocialAuthorizationCode authorizationCode
-	) {
+		) {
 		try {
 			MultiValueMap<String, String> tokenRequest = new LinkedMultiValueMap<>();
 			tokenRequest.add("grant_type", GRANT_TYPE);
@@ -89,7 +92,7 @@ public class KakaoSocialLoginClient implements SocialLoginClient {
 				.retrieve()
 				.body(KakaoTokenResponse.class);
 		} catch (RestClientResponseException exception) {
-			throw toProviderException(exception);
+			throw toTokenProviderException(exception);
 		} catch (ResourceAccessException exception) {
 			throw new BusinessException(ErrorCode.AUTH_SOCIAL_PROVIDER_UNAVAILABLE);
 		} catch (RestClientException exception) {
@@ -109,7 +112,7 @@ public class KakaoSocialLoginClient implements SocialLoginClient {
 	private KakaoUserInfoResponse requestUserInfo(SocialOAuthProperties.Provider properties, String accessToken) {
 		try {
 			KakaoUserInfoResponse userInfoResponse = restClient.get()
-				.uri(properties.getUserInfoUri())
+				.uri(userInfoUri(properties))
 				.header("Authorization", BEARER + accessToken)
 				.retrieve()
 				.body(KakaoUserInfoResponse.class);
@@ -120,7 +123,7 @@ public class KakaoSocialLoginClient implements SocialLoginClient {
 		} catch (BusinessException exception) {
 			throw exception;
 		} catch (RestClientResponseException exception) {
-			throw toProviderException(exception);
+			throw toUserInfoProviderException(exception);
 		} catch (ResourceAccessException exception) {
 			throw new BusinessException(ErrorCode.AUTH_SOCIAL_PROVIDER_UNAVAILABLE);
 		} catch (RestClientException exception) {
@@ -130,10 +133,24 @@ public class KakaoSocialLoginClient implements SocialLoginClient {
 		}
 	}
 
-	private BusinessException toProviderException(RestClientResponseException exception) {
+	private URI userInfoUri(SocialOAuthProperties.Provider properties) {
+		return UriComponentsBuilder.fromUriString(properties.getUserInfoUri())
+			.queryParam("secure_resource", true)
+			.build()
+			.toUri();
+	}
+
+	private BusinessException toTokenProviderException(RestClientResponseException exception) {
 		if (exception.getStatusCode().isSameCodeAs(HttpStatus.BAD_REQUEST)) {
 			return new BusinessException(ErrorCode.AUTH_CODE_INVALID);
 		}
+		if (exception.getStatusCode().is5xxServerError()) {
+			return new BusinessException(ErrorCode.AUTH_SOCIAL_PROVIDER_UNAVAILABLE);
+		}
+		return new BusinessException(ErrorCode.AUTH_SOCIAL_PROVIDER_RESPONSE_INVALID);
+	}
+
+	private BusinessException toUserInfoProviderException(RestClientResponseException exception) {
 		if (exception.getStatusCode().is5xxServerError()) {
 			return new BusinessException(ErrorCode.AUTH_SOCIAL_PROVIDER_UNAVAILABLE);
 		}
