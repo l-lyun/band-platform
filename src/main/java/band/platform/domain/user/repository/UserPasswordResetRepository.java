@@ -15,6 +15,8 @@ public interface UserPasswordResetRepository {
 
 	void saveToken(String tokenHash, Long userId, Duration ttl);
 
+	boolean consumeCodeAndSaveToken(Long userId, String tokenHash, Duration tokenTtl);
+
 	Optional<Long> consumeToken(String tokenHash);
 
 	record PasswordResetCode(String codeHash, int attempts) {

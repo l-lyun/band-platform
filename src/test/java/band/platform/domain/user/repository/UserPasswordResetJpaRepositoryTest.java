@@ -15,10 +15,12 @@ import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
 import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import band.platform.domain.user.entity.Gender;
 import band.platform.domain.user.entity.User;
+import band.platform.domain.user.entity.UserStatus;
 
 @SpringJUnitConfig(UserPasswordResetJpaRepositoryTest.JpaTestConfig.class)
 @TestPropertySource(properties = {
@@ -35,14 +37,27 @@ class UserPasswordResetJpaRepositoryTest {
 	private UserRepository userRepository;
 
 	@Test
-	@DisplayName("로그인 아이디와 이메일이 모두 일치하는 회원을 비밀번호 재설정 대상으로 조회한다")
-	void findByLoginIdAndEmail() {
+	@DisplayName("로그인 아이디와 이메일이 모두 일치하는 ACTIVE 회원을 비밀번호 재설정 대상으로 조회한다")
+	void findByLoginIdAndEmailAndStatus() {
 		User user = saveUser("bandmaster", "bandmaster@example.com");
 
-		assertThat(userRepository.findByLoginIdAndEmail("bandmaster", "bandmaster@example.com"))
+		assertThat(userRepository.findByLoginIdAndEmailAndStatus("bandmaster", "bandmaster@example.com", UserStatus.ACTIVE))
 			.hasValueSatisfying(foundUser -> assertThat(foundUser.getId()).isEqualTo(user.getId()));
-		assertThat(userRepository.findByLoginIdAndEmail("bandmaster", "other@example.com")).isEmpty();
-		assertThat(userRepository.findByLoginIdAndEmail("other", "bandmaster@example.com")).isEmpty();
+		assertThat(userRepository.findByLoginIdAndEmailAndStatus("bandmaster", "other@example.com", UserStatus.ACTIVE))
+			.isEmpty();
+		assertThat(userRepository.findByLoginIdAndEmailAndStatus("other", "bandmaster@example.com", UserStatus.ACTIVE))
+			.isEmpty();
+	}
+
+	@Test
+	@DisplayName("탈퇴한 회원은 로그인 아이디와 이메일이 일치해도 비밀번호 재설정 대상으로 조회하지 않는다")
+	void findByLoginIdAndEmailAndStatusExcludesWithdrawnUser() {
+		User user = saveUser("withdrawn", "withdrawn@example.com");
+		ReflectionTestUtils.setField(user, "status", UserStatus.WITHDRAWN);
+		userRepository.flush();
+
+		assertThat(userRepository.findByLoginIdAndEmailAndStatus("withdrawn", "withdrawn@example.com", UserStatus.ACTIVE))
+			.isEmpty();
 	}
 
 	private User saveUser(String loginId, String email) {

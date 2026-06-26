@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import band.platform.domain.user.entity.User;
+import band.platform.domain.user.entity.UserStatus;
 import band.platform.domain.user.repository.UserPasswordResetRepository;
 import band.platform.domain.user.repository.UserRefreshTokenRepository;
 import band.platform.domain.user.repository.UserRepository;
@@ -23,6 +24,8 @@ import band.platform.global.error.ErrorCode;
 public class UserPasswordResetService {
 
 	private static final int BCRYPT_MAX_PASSWORD_BYTES = 72;
+	private static final int PASSWORD_MIN_LENGTH = 8;
+	private static final int PASSWORD_MAX_LENGTH = 15;
 
 	private final UserRepository userRepository;
 	private final UserPasswordResetRepository passwordResetRepository;
@@ -31,6 +34,7 @@ public class UserPasswordResetService {
 	private final PasswordResetSecureValueGenerator secureValueGenerator;
 	private final PasswordResetProperties properties;
 	private final PasswordResetMailSender mailSender;
+	private final UserSessionLockManager userSessionLockManager;
 
 	@Autowired
 	public UserPasswordResetService(
@@ -40,7 +44,8 @@ public class UserPasswordResetService {
 		PasswordEncoder passwordEncoder,
 		PasswordResetSecureValueGenerator secureValueGenerator,
 		PasswordResetProperties properties,
-		ObjectProvider<PasswordResetMailSender> mailSenderProvider
+		ObjectProvider<PasswordResetMailSender> mailSenderProvider,
+		UserSessionLockManager userSessionLockManager
 	) {
 		this(
 			userRepository,
@@ -49,7 +54,8 @@ public class UserPasswordResetService {
 			passwordEncoder,
 			secureValueGenerator,
 			properties,
-			mailSenderProvider.getIfAvailable(UnavailablePasswordResetMailSender::new)
+			mailSenderProvider.getIfAvailable(UnavailablePasswordResetMailSender::new),
+			userSessionLockManager
 		);
 	}
 
@@ -60,7 +66,8 @@ public class UserPasswordResetService {
 		PasswordEncoder passwordEncoder,
 		PasswordResetSecureValueGenerator secureValueGenerator,
 		PasswordResetProperties properties,
-		PasswordResetMailSender mailSender
+		PasswordResetMailSender mailSender,
+		UserSessionLockManager userSessionLockManager
 	) {
 		this.userRepository = userRepository;
 		this.passwordResetRepository = passwordResetRepository;
@@ -69,6 +76,7 @@ public class UserPasswordResetService {
 		this.secureValueGenerator = secureValueGenerator;
 		this.properties = properties;
 		this.mailSender = mailSender;
+		this.userSessionLockManager = userSessionLockManager;
 	}
 
 	@Transactional
@@ -105,9 +113,15 @@ public class UserPasswordResetService {
 			throw new BusinessException(ErrorCode.AUTH_CODE_INVALID);
 		}
 
-		passwordResetRepository.deleteCode(user.getId());
 		String resetToken = secureValueGenerator.generateToken();
-		passwordResetRepository.saveToken(sha256(resetToken), user.getId(), properties.getTokenTtl());
+		boolean tokenSaved = passwordResetRepository.consumeCodeAndSaveToken(
+			user.getId(),
+			sha256(resetToken),
+			properties.getTokenTtl()
+		);
+		if (!tokenSaved) {
+			throw new BusinessException(ErrorCode.AUTH_CODE_EXPIRED);
+		}
 		return resetToken;
 	}
 
@@ -116,17 +130,20 @@ public class UserPasswordResetService {
 		if (!StringUtils.hasText(resetToken)) {
 			throw new BusinessException(ErrorCode.AUTH_TOKEN_INVALID);
 		}
-		if (!StringUtils.hasText(newPassword) || exceedsBcryptByteLimit(newPassword)) {
+		if (!StringUtils.hasText(newPassword) || exceedsBcryptByteLimit(newPassword)
+			|| isInvalidPasswordLength(newPassword)) {
 			throw new BusinessException(ErrorCode.COMMON_INVALID_INPUT);
 		}
 
 		Long userId = passwordResetRepository.consumeToken(sha256(resetToken))
 			.orElseThrow(() -> new BusinessException(ErrorCode.AUTH_TOKEN_INVALID));
-		User user = userRepository.findById(userId)
-			.orElseThrow(() -> new BusinessException(ErrorCode.COMMON_NOT_FOUND));
 
-		user.changePassword(passwordEncoder.encode(newPassword));
-		refreshTokenRepository.deleteAll(userId);
+		userSessionLockManager.withLock(userId, () -> {
+			User user = userRepository.findById(userId)
+				.orElseThrow(() -> new BusinessException(ErrorCode.COMMON_NOT_FOUND));
+			user.changePassword(passwordEncoder.encode(newPassword));
+			refreshTokenRepository.deleteAll(userId);
+		});
 	}
 
 	static String sha256(String value) {
@@ -140,8 +157,12 @@ public class UserPasswordResetService {
 	}
 
 	private User findResetTarget(String loginId, String email) {
-		return userRepository.findByLoginIdAndEmail(loginId, email)
+		return userRepository.findByLoginIdAndEmailAndStatus(loginId, email, UserStatus.ACTIVE)
 			.orElseThrow(() -> new BusinessException(ErrorCode.COMMON_NOT_FOUND));
+	}
+
+	private boolean isInvalidPasswordLength(String password) {
+		return password.length() < PASSWORD_MIN_LENGTH || password.length() > PASSWORD_MAX_LENGTH;
 	}
 
 	private boolean exceedsBcryptByteLimit(String password) {

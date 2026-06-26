@@ -1,12 +1,14 @@
 package band.platform.domain.user.repository;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
 import org.springframework.data.redis.core.BoundHashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Repository;
 
 import band.platform.global.error.BusinessException;
@@ -22,6 +24,14 @@ public class RedisUserPasswordResetRepository implements UserPasswordResetReposi
 	private static final String PASSWORD_RESET_TOKEN_KEY_PREFIX = "auth:password-reset:token:";
 	private static final String CODE_HASH_FIELD = "codeHash";
 	private static final String ATTEMPTS_FIELD = "attempts";
+	private static final RedisScript<Long> CONSUME_CODE_AND_SAVE_TOKEN_SCRIPT = RedisScript.of("""
+		if redis.call('EXISTS', KEYS[1]) == 0 then
+			return 0
+		end
+		redis.call('DEL', KEYS[1])
+		redis.call('SET', KEYS[2], ARGV[1], 'PX', ARGV[2])
+		return 1
+		""", Long.class);
 
 	private final StringRedisTemplate redisTemplate;
 
@@ -81,6 +91,20 @@ public class RedisUserPasswordResetRepository implements UserPasswordResetReposi
 	@Override
 	public void saveToken(String tokenHash, Long userId, Duration ttl) {
 		redisTemplate.opsForValue().set(tokenKey(tokenHash), String.valueOf(userId), ttl);
+	}
+
+	@Override
+	public boolean consumeCodeAndSaveToken(Long userId, String tokenHash, Duration tokenTtl) {
+		Long result = redisTemplate.execute(
+			CONSUME_CODE_AND_SAVE_TOKEN_SCRIPT,
+			List.of(codeKey(userId), tokenKey(tokenHash)),
+			String.valueOf(userId),
+			String.valueOf(tokenTtl.toMillis())
+		);
+		if (result == null) {
+			throw new BusinessException(ErrorCode.COMMON_INTERNAL_SERVER_ERROR);
+		}
+		return Long.valueOf(1).equals(result);
 	}
 
 	@Override

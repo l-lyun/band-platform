@@ -10,7 +10,10 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -24,6 +27,7 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import band.platform.domain.user.entity.Gender;
 import band.platform.domain.user.entity.User;
+import band.platform.domain.user.entity.UserStatus;
 import band.platform.domain.user.repository.UserPasswordResetRepository;
 import band.platform.domain.user.repository.UserRefreshTokenRepository;
 import band.platform.domain.user.repository.UserRepository;
@@ -55,6 +59,7 @@ class UserPasswordResetServiceTest {
 
 	private PasswordEncoder passwordEncoder;
 	private CapturingPasswordResetMailSender mailSender;
+	private RecordingUserSessionLockManager userSessionLockManager;
 	private UserPasswordResetService service;
 
 	@BeforeEach
@@ -66,6 +71,7 @@ class UserPasswordResetServiceTest {
 		properties.setCodeTtl(CODE_TTL);
 		properties.setTokenTtl(TOKEN_TTL);
 		properties.setMaxAttempts(3);
+		userSessionLockManager = new RecordingUserSessionLockManager();
 		service = new UserPasswordResetService(
 			userRepository,
 			passwordResetRepository,
@@ -73,7 +79,8 @@ class UserPasswordResetServiceTest {
 			passwordEncoder,
 			secureValueGenerator,
 			properties,
-			mailSender
+			mailSender,
+			userSessionLockManager
 		);
 	}
 
@@ -81,7 +88,8 @@ class UserPasswordResetServiceTest {
 	@DisplayName("회원 정보가 일치하면 재설정 코드를 해시로 저장하고 이메일 발송 경계에 전달한다")
 	void request() {
 		User user = user();
-		when(userRepository.findByLoginIdAndEmail(LOGIN_ID, EMAIL)).thenReturn(Optional.of(user));
+		when(userRepository.findByLoginIdAndEmailAndStatus(LOGIN_ID, EMAIL, UserStatus.ACTIVE))
+			.thenReturn(Optional.of(user));
 		when(secureValueGenerator.generateCode()).thenReturn(RESET_CODE);
 		ArgumentCaptor<String> codeHash = ArgumentCaptor.forClass(String.class);
 
@@ -97,7 +105,8 @@ class UserPasswordResetServiceTest {
 	@Test
 	@DisplayName("회원 정보가 일치하지 않으면 재설정 코드를 발급하지 않는다")
 	void requestUnknownUser() {
-		when(userRepository.findByLoginIdAndEmail(LOGIN_ID, EMAIL)).thenReturn(Optional.empty());
+		when(userRepository.findByLoginIdAndEmailAndStatus(LOGIN_ID, EMAIL, UserStatus.ACTIVE))
+			.thenReturn(Optional.empty());
 
 		assertThatThrownBy(() -> service.request(LOGIN_ID, EMAIL))
 			.isInstanceOfSatisfying(BusinessException.class, exception ->
@@ -107,26 +116,73 @@ class UserPasswordResetServiceTest {
 	}
 
 	@Test
-	@DisplayName("재설정 코드가 일치하면 코드를 삭제하고 원문 토큰은 반환하되 해시만 저장한다")
+	@DisplayName("탈퇴한 회원은 재설정 코드 발급 대상에서 제외한다")
+	void requestWithdrawnUser() {
+		when(userRepository.findByLoginIdAndEmailAndStatus(LOGIN_ID, EMAIL, UserStatus.ACTIVE))
+			.thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.request(LOGIN_ID, EMAIL))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_NOT_FOUND)
+			);
+		verify(passwordResetRepository, never()).saveCode(any(), anyString(), any());
+	}
+
+	@Test
+	@DisplayName("재설정 코드가 일치하면 코드 소비와 토큰 저장을 원자적으로 요청한다")
 	void verifyCode() {
 		User user = user();
 		String codeHash = passwordEncoder.encode(RESET_CODE);
-		when(userRepository.findByLoginIdAndEmail(LOGIN_ID, EMAIL)).thenReturn(Optional.of(user));
+		when(userRepository.findByLoginIdAndEmailAndStatus(LOGIN_ID, EMAIL, UserStatus.ACTIVE))
+			.thenReturn(Optional.of(user));
 		when(passwordResetRepository.findCode(USER_ID))
 			.thenReturn(Optional.of(new UserPasswordResetRepository.PasswordResetCode(codeHash, 0)));
 		when(secureValueGenerator.generateToken()).thenReturn(RESET_TOKEN);
+		when(passwordResetRepository.consumeCodeAndSaveToken(
+			USER_ID,
+			UserPasswordResetService.sha256(RESET_TOKEN),
+			TOKEN_TTL
+		)).thenReturn(true);
 
 		String resetToken = service.verify(LOGIN_ID, EMAIL, RESET_CODE);
 
 		assertThat(resetToken).isEqualTo(RESET_TOKEN);
-		verify(passwordResetRepository).deleteCode(USER_ID);
-		verify(passwordResetRepository).saveToken(eq(UserPasswordResetService.sha256(RESET_TOKEN)), eq(USER_ID), eq(TOKEN_TTL));
+		verify(passwordResetRepository).consumeCodeAndSaveToken(
+			USER_ID,
+			UserPasswordResetService.sha256(RESET_TOKEN),
+			TOKEN_TTL
+		);
+		verify(passwordResetRepository, never()).deleteCode(USER_ID);
+		verify(passwordResetRepository, never()).saveToken(anyString(), any(), any());
+	}
+
+	@Test
+	@DisplayName("동시에 이미 소비된 재설정 코드를 검증하면 토큰을 반환하지 않고 만료 예외를 던진다")
+	void verifyCodeAlreadyConsumed() {
+		String codeHash = passwordEncoder.encode(RESET_CODE);
+		when(userRepository.findByLoginIdAndEmailAndStatus(LOGIN_ID, EMAIL, UserStatus.ACTIVE))
+			.thenReturn(Optional.of(user()));
+		when(passwordResetRepository.findCode(USER_ID))
+			.thenReturn(Optional.of(new UserPasswordResetRepository.PasswordResetCode(codeHash, 0)));
+		when(secureValueGenerator.generateToken()).thenReturn(RESET_TOKEN);
+		when(passwordResetRepository.consumeCodeAndSaveToken(
+			USER_ID,
+			UserPasswordResetService.sha256(RESET_TOKEN),
+			TOKEN_TTL
+		)).thenReturn(false);
+
+		assertThatThrownBy(() -> service.verify(LOGIN_ID, EMAIL, RESET_CODE))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_CODE_EXPIRED)
+			);
+		verify(passwordResetRepository, never()).saveToken(anyString(), any(), any());
 	}
 
 	@Test
 	@DisplayName("재설정 코드가 없으면 만료 예외를 던진다")
 	void verifyExpiredCode() {
-		when(userRepository.findByLoginIdAndEmail(LOGIN_ID, EMAIL)).thenReturn(Optional.of(user()));
+		when(userRepository.findByLoginIdAndEmailAndStatus(LOGIN_ID, EMAIL, UserStatus.ACTIVE))
+			.thenReturn(Optional.of(user()));
 		when(passwordResetRepository.findCode(USER_ID)).thenReturn(Optional.empty());
 
 		assertThatThrownBy(() -> service.verify(LOGIN_ID, EMAIL, RESET_CODE))
@@ -139,7 +195,8 @@ class UserPasswordResetServiceTest {
 	@DisplayName("재설정 코드가 일치하지 않으면 실패 횟수를 증가시키고 A07 예외를 던진다")
 	void verifyWrongCode() {
 		String codeHash = passwordEncoder.encode(RESET_CODE);
-		when(userRepository.findByLoginIdAndEmail(LOGIN_ID, EMAIL)).thenReturn(Optional.of(user()));
+		when(userRepository.findByLoginIdAndEmailAndStatus(LOGIN_ID, EMAIL, UserStatus.ACTIVE))
+			.thenReturn(Optional.of(user()));
 		when(passwordResetRepository.findCode(USER_ID))
 			.thenReturn(Optional.of(new UserPasswordResetRepository.PasswordResetCode(codeHash, 0)));
 		when(passwordResetRepository.incrementCodeAttempts(USER_ID))
@@ -157,7 +214,8 @@ class UserPasswordResetServiceTest {
 	@DisplayName("재설정 코드 실패 횟수가 한도에 도달하면 코드를 삭제한다")
 	void verifyMaxAttempts() {
 		String codeHash = passwordEncoder.encode(RESET_CODE);
-		when(userRepository.findByLoginIdAndEmail(LOGIN_ID, EMAIL)).thenReturn(Optional.of(user()));
+		when(userRepository.findByLoginIdAndEmailAndStatus(LOGIN_ID, EMAIL, UserStatus.ACTIVE))
+			.thenReturn(Optional.of(user()));
 		when(passwordResetRepository.findCode(USER_ID))
 			.thenReturn(Optional.of(new UserPasswordResetRepository.PasswordResetCode(codeHash, 2)));
 		when(passwordResetRepository.incrementCodeAttempts(USER_ID))
@@ -171,6 +229,19 @@ class UserPasswordResetServiceTest {
 	}
 
 	@Test
+	@DisplayName("탈퇴한 회원은 재설정 코드 검증 대상에서 제외한다")
+	void verifyWithdrawnUser() {
+		when(userRepository.findByLoginIdAndEmailAndStatus(LOGIN_ID, EMAIL, UserStatus.ACTIVE))
+			.thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> service.verify(LOGIN_ID, EMAIL, RESET_CODE))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_NOT_FOUND)
+			);
+		verify(passwordResetRepository, never()).findCode(any());
+	}
+
+	@Test
 	@DisplayName("재설정 토큰을 소비한 뒤 새 비밀번호로 변경하고 리프레시 토큰을 무효화한다")
 	void complete() {
 		User user = user();
@@ -181,6 +252,7 @@ class UserPasswordResetServiceTest {
 
 		assertThat(passwordEncoder.matches(NEW_PASSWORD, user.getPassword())).isTrue();
 		verify(refreshTokenRepository).deleteAll(USER_ID);
+		assertThat(userSessionLockManager.lockedUserIds).containsExactly(USER_ID);
 	}
 
 	@Test
@@ -196,9 +268,29 @@ class UserPasswordResetServiceTest {
 	}
 
 	@Test
+	@DisplayName("새 비밀번호가 8자보다 짧으면 재설정 토큰을 소비하지 않는다")
+	void completePasswordTooShort() {
+		assertThatThrownBy(() -> service.complete(RESET_TOKEN, "short7!"))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_INVALID_INPUT)
+			);
+		verify(passwordResetRepository, never()).consumeToken(anyString());
+	}
+
+	@Test
+	@DisplayName("새 비밀번호가 15자를 넘으면 재설정 토큰을 소비하지 않는다")
+	void completePasswordTooLong() {
+		assertThatThrownBy(() -> service.complete(RESET_TOKEN, "password12345678"))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_INVALID_INPUT)
+			);
+		verify(passwordResetRepository, never()).consumeToken(anyString());
+	}
+
+	@Test
 	@DisplayName("BCrypt 제한을 넘는 새 비밀번호이면 재설정 토큰을 소비하지 않는다")
 	void completePasswordByteLengthExceeded() {
-		String password = "가".repeat(25);
+		String password = "가".repeat(15) + "a".repeat(28);
 
 		assertThatThrownBy(() -> service.complete(RESET_TOKEN, password))
 			.isInstanceOfSatisfying(BusinessException.class, exception ->
@@ -233,6 +325,17 @@ class UserPasswordResetServiceTest {
 		public void sendPasswordResetCode(String email, String code) {
 			this.email = email;
 			this.code = code;
+		}
+	}
+
+	private static class RecordingUserSessionLockManager extends UserSessionLockManager {
+
+		private final List<Long> lockedUserIds = new ArrayList<>();
+
+		@Override
+		public <T> T withLock(Long userId, Supplier<T> operation) {
+			lockedUserIds.add(userId);
+			return super.withLock(userId, operation);
 		}
 	}
 }

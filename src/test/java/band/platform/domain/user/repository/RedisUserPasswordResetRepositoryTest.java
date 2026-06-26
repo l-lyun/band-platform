@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
@@ -14,12 +15,15 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentMatchers;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.data.redis.core.BoundHashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
+import org.springframework.data.redis.core.script.RedisScript;
 
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
@@ -130,6 +134,58 @@ class RedisUserPasswordResetRepositoryTest {
 	}
 
 	@Test
+	@DisplayName("비밀번호 재설정 코드가 남아 있으면 코드를 소비하고 토큰을 한 번에 저장한다")
+	void consumeCodeAndSaveToken() {
+		when(redisTemplate.execute(
+			ArgumentMatchers.<RedisScript<Long>>any(),
+			eq(List.of(CODE_KEY, TOKEN_KEY)),
+			eq(String.valueOf(USER_ID)),
+			eq(String.valueOf(TOKEN_TTL.toMillis()))
+		)).thenReturn(1L);
+
+		boolean consumed = repository.consumeCodeAndSaveToken(USER_ID, TOKEN_HASH, TOKEN_TTL);
+
+		ArgumentCaptor<RedisScript<Long>> scriptCaptor = redisScriptCaptor();
+		verify(redisTemplate).execute(
+			scriptCaptor.capture(),
+			eq(List.of(CODE_KEY, TOKEN_KEY)),
+			eq(String.valueOf(USER_ID)),
+			eq(String.valueOf(TOKEN_TTL.toMillis()))
+		);
+		assertThat(scriptCaptor.getValue().getResultType()).isEqualTo(Long.class);
+		assertThat(consumed).isTrue();
+	}
+
+	@Test
+	@DisplayName("비밀번호 재설정 코드가 이미 소비되었으면 토큰을 저장하지 않는다")
+	void consumeMissingCodeAndSaveToken() {
+		when(redisTemplate.execute(
+			ArgumentMatchers.<RedisScript<Long>>any(),
+			eq(List.of(CODE_KEY, TOKEN_KEY)),
+			eq(String.valueOf(USER_ID)),
+			eq(String.valueOf(TOKEN_TTL.toMillis()))
+		)).thenReturn(0L);
+
+		assertThat(repository.consumeCodeAndSaveToken(USER_ID, TOKEN_HASH, TOKEN_TTL)).isFalse();
+	}
+
+	@Test
+	@DisplayName("비밀번호 재설정 코드 소비 스크립트 결과가 없으면 공통 서버 예외로 변환한다")
+	void consumeCodeAndSaveTokenWithoutScriptResult() {
+		when(redisTemplate.execute(
+			ArgumentMatchers.<RedisScript<Long>>any(),
+			eq(List.of(CODE_KEY, TOKEN_KEY)),
+			eq(String.valueOf(USER_ID)),
+			eq(String.valueOf(TOKEN_TTL.toMillis()))
+		)).thenReturn(null);
+
+		assertThatThrownBy(() -> repository.consumeCodeAndSaveToken(USER_ID, TOKEN_HASH, TOKEN_TTL))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_INTERNAL_SERVER_ERROR)
+			);
+	}
+
+	@Test
 	@DisplayName("비밀번호 재설정 토큰은 처음 소비할 때 사용자 식별자를 반환한다")
 	void consumeToken() {
 		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
@@ -163,5 +219,10 @@ class RedisUserPasswordResetRepositoryTest {
 			.isInstanceOfSatisfying(BusinessException.class, exception ->
 				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_INTERNAL_SERVER_ERROR)
 			);
+	}
+
+	@SuppressWarnings("unchecked")
+	private static ArgumentCaptor<RedisScript<Long>> redisScriptCaptor() {
+		return ArgumentCaptor.forClass((Class<RedisScript<Long>>)(Class<?>)RedisScript.class);
 	}
 }
