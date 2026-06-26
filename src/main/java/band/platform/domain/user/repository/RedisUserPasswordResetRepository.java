@@ -1,9 +1,11 @@
 package band.platform.domain.user.repository;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
+import org.springframework.data.redis.core.BoundHashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
 
@@ -18,42 +20,57 @@ public class RedisUserPasswordResetRepository implements UserPasswordResetReposi
 
 	private static final String PASSWORD_RESET_CODE_KEY_PREFIX = "auth:password-reset:code:";
 	private static final String PASSWORD_RESET_TOKEN_KEY_PREFIX = "auth:password-reset:token:";
-	private static final String VALUE_DELIMITER = ":";
-	private static final int HASH_INDEX = 0;
-	private static final int ATTEMPTS_INDEX = 1;
-	private static final int CODE_VALUE_PARTS = 2;
+	private static final String CODE_HASH_FIELD = "codeHash";
+	private static final String ATTEMPTS_FIELD = "attempts";
 
 	private final StringRedisTemplate redisTemplate;
 
 	@Override
 	public void saveCode(Long userId, String codeHash, Duration ttl) {
-		redisTemplate.opsForValue().set(codeKey(userId), encodeCode(codeHash, 0), ttl);
+		String key = codeKey(userId);
+		redisTemplate.boundHashOps(key)
+			.putAll(Map.of(
+				CODE_HASH_FIELD, codeHash,
+				ATTEMPTS_FIELD, "0"
+			));
+		redisTemplate.expire(key, ttl);
 	}
 
 	@Override
 	public Optional<PasswordResetCode> findCode(Long userId) {
-		return Optional.ofNullable(redisTemplate.opsForValue().get(codeKey(userId)))
-			.map(this::decodeCode);
+		Map<Object, Object> values = codeOperations(codeKey(userId)).entries();
+		if (values.isEmpty()) {
+			return Optional.empty();
+		}
+
+		return Optional.of(decodeCode(values));
 	}
 
 	@Override
 	public Optional<PasswordResetCode> incrementCodeAttempts(Long userId) {
 		String key = codeKey(userId);
-		String value = redisTemplate.opsForValue().get(key);
-		if (value == null) {
+		if (!Boolean.TRUE.equals(redisTemplate.hasKey(key))) {
 			return Optional.empty();
 		}
 
-		PasswordResetCode code = decodeCode(value);
-		PasswordResetCode updatedCode = new PasswordResetCode(code.codeHash(), code.attempts() + 1);
+		BoundHashOperations<String, Object, Object> operations = codeOperations(key);
+		Long attempts = operations.increment(ATTEMPTS_FIELD, 1);
+		Object codeHash = operations.get(CODE_HASH_FIELD);
+		if (codeHash == null) {
+			redisTemplate.delete(key);
+			return Optional.empty();
+		}
+		if (String.valueOf(codeHash).isBlank() || attempts == null) {
+			throw new BusinessException(ErrorCode.COMMON_INTERNAL_SERVER_ERROR);
+		}
+
 		Long ttlSeconds = redisTemplate.getExpire(key, TimeUnit.SECONDS);
 		if (ttlSeconds == null || ttlSeconds <= 0) {
 			redisTemplate.delete(key);
 			return Optional.empty();
 		}
 
-		redisTemplate.opsForValue().set(key, encodeCode(updatedCode.codeHash(), updatedCode.attempts()), Duration.ofSeconds(ttlSeconds));
-		return Optional.of(updatedCode);
+		return Optional.of(new PasswordResetCode(String.valueOf(codeHash), Math.toIntExact(attempts)));
 	}
 
 	@Override
@@ -80,20 +97,21 @@ public class RedisUserPasswordResetRepository implements UserPasswordResetReposi
 		}
 	}
 
-	private String encodeCode(String codeHash, int attempts) {
-		return codeHash + VALUE_DELIMITER + attempts;
-	}
-
-	private PasswordResetCode decodeCode(String value) {
-		String[] parts = value.split(VALUE_DELIMITER, CODE_VALUE_PARTS);
-		if (parts.length != CODE_VALUE_PARTS || parts[HASH_INDEX].isBlank()) {
+	private PasswordResetCode decodeCode(Map<Object, Object> values) {
+		Object codeHash = values.get(CODE_HASH_FIELD);
+		Object attempts = values.get(ATTEMPTS_FIELD);
+		if (codeHash == null || String.valueOf(codeHash).isBlank() || attempts == null) {
 			throw new BusinessException(ErrorCode.COMMON_INTERNAL_SERVER_ERROR);
 		}
 		try {
-			return new PasswordResetCode(parts[HASH_INDEX], Integer.parseInt(parts[ATTEMPTS_INDEX]));
+			return new PasswordResetCode(String.valueOf(codeHash), Integer.parseInt(String.valueOf(attempts)));
 		} catch (NumberFormatException exception) {
 			throw new BusinessException(ErrorCode.COMMON_INTERNAL_SERVER_ERROR);
 		}
+	}
+
+	private BoundHashOperations<String, Object, Object> codeOperations(String key) {
+		return redisTemplate.boundHashOps(key);
 	}
 
 	private String codeKey(Long userId) {

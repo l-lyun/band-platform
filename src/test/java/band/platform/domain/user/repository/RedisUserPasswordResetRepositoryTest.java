@@ -7,6 +7,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.TimeUnit;
 
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.BoundHashOperations;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 
@@ -39,24 +41,34 @@ class RedisUserPasswordResetRepositoryTest {
 	@Mock
 	private ValueOperations<String, String> valueOperations;
 
+	@Mock
+	private BoundHashOperations<String, Object, Object> codeOperations;
+
 	@InjectMocks
 	private RedisUserPasswordResetRepository repository;
 
 	@Test
 	@DisplayName("비밀번호 재설정 코드를 해시와 시도 횟수로 TTL과 함께 저장한다")
 	void saveCode() {
-		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
+		when(redisTemplate.boundHashOps(CODE_KEY)).thenReturn(codeOperations);
 
 		repository.saveCode(USER_ID, CODE_HASH, CODE_TTL);
 
-		verify(valueOperations).set(CODE_KEY, CODE_HASH + ":0", CODE_TTL);
+		verify(codeOperations).putAll(Map.of(
+			"codeHash", CODE_HASH,
+			"attempts", "0"
+		));
+		verify(redisTemplate).expire(CODE_KEY, CODE_TTL);
 	}
 
 	@Test
 	@DisplayName("저장된 비밀번호 재설정 코드 해시와 시도 횟수를 조회한다")
 	void findCode() {
-		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-		when(valueOperations.get(CODE_KEY)).thenReturn(CODE_HASH + ":2");
+		when(redisTemplate.boundHashOps(CODE_KEY)).thenReturn(codeOperations);
+		when(codeOperations.entries()).thenReturn(Map.of(
+			"codeHash", CODE_HASH,
+			"attempts", "2"
+		));
 
 		Optional<UserPasswordResetRepository.PasswordResetCode> code = repository.findCode(USER_ID);
 
@@ -66,23 +78,37 @@ class RedisUserPasswordResetRepositoryTest {
 	@Test
 	@DisplayName("비밀번호 재설정 코드 실패 횟수를 기존 TTL 안에서 증가시킨다")
 	void incrementCodeAttempts() {
-		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-		when(valueOperations.get(CODE_KEY)).thenReturn(CODE_HASH + ":1");
+		when(redisTemplate.hasKey(CODE_KEY)).thenReturn(true);
+		when(redisTemplate.boundHashOps(CODE_KEY)).thenReturn(codeOperations);
+		when(codeOperations.increment("attempts", 1)).thenReturn(2L);
+		when(codeOperations.get("codeHash")).thenReturn(CODE_HASH);
 		when(redisTemplate.getExpire(CODE_KEY, TimeUnit.SECONDS)).thenReturn(120L);
 
 		Optional<UserPasswordResetRepository.PasswordResetCode> code = repository.incrementCodeAttempts(USER_ID);
 
 		assertThat(code).contains(new UserPasswordResetRepository.PasswordResetCode(CODE_HASH, 2));
-		verify(valueOperations).set(CODE_KEY, CODE_HASH + ":2", Duration.ofSeconds(120));
+		verify(codeOperations).increment("attempts", 1);
 	}
 
 	@Test
 	@DisplayName("비밀번호 재설정 코드가 없으면 실패 횟수를 증가시키지 않는다")
 	void incrementMissingCodeAttempts() {
-		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-		when(valueOperations.get(CODE_KEY)).thenReturn(null);
+		when(redisTemplate.hasKey(CODE_KEY)).thenReturn(false);
 
 		assertThat(repository.incrementCodeAttempts(USER_ID)).isEmpty();
+	}
+
+	@Test
+	@DisplayName("만료 직후 실패 횟수만 증가된 비밀번호 재설정 코드 키는 삭제한다")
+	void incrementCodeAttemptsDeletesExpiredRaceKey() {
+		when(redisTemplate.hasKey(CODE_KEY)).thenReturn(true);
+		when(redisTemplate.boundHashOps(CODE_KEY)).thenReturn(codeOperations);
+		when(codeOperations.increment("attempts", 1)).thenReturn(1L);
+		when(codeOperations.get("codeHash")).thenReturn(null);
+
+		assertThat(repository.incrementCodeAttempts(USER_ID)).isEmpty();
+
+		verify(redisTemplate).delete(CODE_KEY);
 	}
 
 	@Test
@@ -127,8 +153,11 @@ class RedisUserPasswordResetRepositoryTest {
 	@Test
 	@DisplayName("손상된 비밀번호 재설정 코드 값은 공통 서버 예외로 변환한다")
 	void findCorruptCode() {
-		when(redisTemplate.opsForValue()).thenReturn(valueOperations);
-		when(valueOperations.get(CODE_KEY)).thenReturn("corrupt-value");
+		when(redisTemplate.boundHashOps(CODE_KEY)).thenReturn(codeOperations);
+		when(codeOperations.entries()).thenReturn(Map.of(
+			"codeHash", CODE_HASH,
+			"attempts", "corrupt-value"
+		));
 
 		assertThatThrownBy(() -> repository.findCode(USER_ID))
 			.isInstanceOfSatisfying(BusinessException.class, exception ->
