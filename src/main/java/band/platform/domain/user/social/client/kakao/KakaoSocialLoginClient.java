@@ -2,6 +2,7 @@ package band.platform.domain.user.social.client.kakao;
 
 import java.net.URI;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -32,6 +33,7 @@ public class KakaoSocialLoginClient implements SocialLoginClient {
 	private final RestClient restClient;
 	private final SocialOAuthProperties socialOAuthProperties;
 
+	@Autowired
 	public KakaoSocialLoginClient(RestClient.Builder restClientBuilder, SocialOAuthProperties socialOAuthProperties) {
 		this(ProviderRestClientFactory.create(restClientBuilder), socialOAuthProperties);
 	}

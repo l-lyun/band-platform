@@ -1,5 +1,6 @@
 package band.platform.domain.user.social.client.naver;
 
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
 import org.springframework.util.LinkedMultiValueMap;
@@ -28,6 +29,7 @@ public class NaverSocialLoginClient implements SocialLoginClient {
 	private final RestClient restClient;
 	private final SocialOAuthProperties socialOAuthProperties;
 
+	@Autowired
 	public NaverSocialLoginClient(RestClient.Builder restClientBuilder, SocialOAuthProperties socialOAuthProperties) {
 		this(ProviderRestClientFactory.create(restClientBuilder), socialOAuthProperties);
 	}
