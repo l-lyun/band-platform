@@ -26,9 +26,7 @@ public class AuthController {
 
 	@PostMapping("/reissue")
 	public ResponseEntity<ApiResult<TokenResponse>> reissue(HttpServletRequest request) {
-		String refreshToken = extractRefreshToken(request);
-		UserTokenIssueResult tokenIssueResult = userTokenService.reissue(refreshToken);
-
+		UserTokenIssueResult tokenIssueResult = userTokenService.reissue(request);
 		return ResponseEntity.ok()
 			.header(
 				HttpHeaders.SET_COOKIE,
@@ -40,32 +38,11 @@ public class AuthController {
 
 	@PostMapping("/logout")
 	public ResponseEntity<ApiResult<Void>> logout(HttpServletRequest request) {
-		refreshTokenCookieFactory.extract(request.getCookies())
-			.ifPresent(this::deleteRefreshTokenIfValid);
-
+		userTokenService.logout(request);
 		return ResponseEntity.ok()
 			.header(HttpHeaders.SET_COOKIE, refreshTokenCookieFactory.delete().toString())
 			.body(ApiResult.ok());
 	}
 
-	private String extractRefreshToken(HttpServletRequest request) {
-		return refreshTokenCookieFactory.extract(request.getCookies())
-			.orElseThrow(() -> new BusinessException(ErrorCode.AUTH_TOKEN_INVALID));
-	}
-
-	private void deleteRefreshTokenIfValid(String refreshToken) {
-		try {
-			userTokenService.logout(refreshToken);
-		} catch (BusinessException exception) {
-			if (!isIgnorableLogoutError(exception.getErrorCode())) {
-				throw exception;
-			}
-		}
-	}
-
-	private boolean isIgnorableLogoutError(ErrorCode errorCode) {
-		return errorCode == ErrorCode.AUTH_TOKEN_INVALID
-			|| errorCode == ErrorCode.AUTH_TOKEN_EXPIRED;
-	}
 
 }

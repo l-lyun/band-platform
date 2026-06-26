@@ -10,9 +10,11 @@ import band.platform.domain.user.dto.UserTokenIssueResult;
 import band.platform.domain.user.repository.UserRefreshTokenRepository;
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
+import band.platform.global.security.cookie.RefreshTokenCookieFactory;
 import band.platform.global.security.jwt.JwtRefreshTokenClaims;
 import band.platform.global.security.jwt.JwtToken;
 import band.platform.global.security.jwt.JwtTokenProvider;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -21,6 +23,7 @@ public class UserTokenService {
 
 	private final JwtTokenProvider jwtTokenProvider;
 	private final UserRefreshTokenRepository userRefreshTokenRepository;
+	private final RefreshTokenCookieFactory refreshTokenCookieFactory;
 
 	public UserTokenIssueResult issue(Long userId, String loginId) {
 		String refreshTokenId = newRefreshTokenId();
@@ -35,7 +38,10 @@ public class UserTokenService {
 		);
 	}
 
-	public UserTokenIssueResult reissue(String refreshToken) {
+	public UserTokenIssueResult reissue(HttpServletRequest servletRequest) {
+
+		String refreshToken = extractRefreshToken(servletRequest);
+
 		JwtRefreshTokenClaims claims = jwtTokenProvider.parseRefreshToken(refreshToken);
 		String newRefreshTokenId = newRefreshTokenId();
 		boolean rotated = userRefreshTokenRepository.rotate(
@@ -58,9 +64,9 @@ public class UserTokenService {
 		);
 	}
 
-	public void logout(String refreshToken) {
-		JwtRefreshTokenClaims claims = jwtTokenProvider.parseRefreshToken(refreshToken);
-		userRefreshTokenRepository.delete(claims.userId(), claims.tokenId());
+	public void logout(HttpServletRequest servletRequest) {
+		refreshTokenCookieFactory.extract(servletRequest.getCookies())
+			.ifPresent(this::deleteRefreshTokenIfValid);
 	}
 
 	private Duration refreshTokenTtl() {
@@ -70,5 +76,20 @@ public class UserTokenService {
 	private String newRefreshTokenId() {
 		return UUID.randomUUID().toString();
 	}
+
+	private String extractRefreshToken(HttpServletRequest request) {
+		return refreshTokenCookieFactory.extract(request.getCookies())
+			.orElseThrow(() -> new BusinessException(ErrorCode.AUTH_TOKEN_INVALID));
+	}
+
+	private void deleteRefreshTokenIfValid(String refreshToken) {
+		JwtRefreshTokenClaims claims = jwtTokenProvider.parseRefreshToken(refreshToken);
+		userRefreshTokenRepository.delete(claims.userId(), claims.tokenId());
+	}
+	private boolean isIgnorableLogoutError(ErrorCode errorCode) {
+		return errorCode == ErrorCode.AUTH_TOKEN_INVALID
+			|| errorCode == ErrorCode.AUTH_TOKEN_EXPIRED;
+	}
+
 
 }
