@@ -6,11 +6,14 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import band.platform.domain.user.dto.FindLoginIdRequest;
+import band.platform.domain.user.dto.FindLoginIdResponse;
 import band.platform.domain.user.dto.UserLoginRequest;
 import band.platform.domain.user.dto.UserLoginResponse;
 import band.platform.domain.user.entity.User;
 import band.platform.domain.user.entity.UserStatus;
 import band.platform.domain.user.repository.UserRepository;
+import band.platform.global.ApiResult;
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
 import lombok.RequiredArgsConstructor;
@@ -32,27 +35,32 @@ public class UserLoginService {
 		}
 
 		User user = userRepository.findByLoginId(request.loginId())
-			.orElse(null);
+			.orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS));
 
-		if (user == null) {
-			verifyPassword(request.password(), DUMMY_PASSWORD_HASH);
-			throw invalidCredentials();
-		}
-
-		if (user.getStatus() != UserStatus.ACTIVE) {
-			verifyPassword(request.password(), DUMMY_PASSWORD_HASH);
-			throw invalidCredentials();
-		}
-
-		if (!verifyPassword(request.password(), user.getPassword())) {
-			throw invalidCredentials();
-		}
+		isActiveUser(user);
+		isMatchedPassword(user, request);
 
 		return UserLoginResponse.from(user);
 	}
 
-	private BusinessException invalidCredentials() {
-		return new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+	@Transactional(readOnly = true)
+	public FindLoginIdResponse findLoginId(FindLoginIdRequest request) {
+		return userRepository.findByEmailAndStatus(request.email(), UserStatus.ACTIVE)
+			.map(user -> new FindLoginIdResponse(user.getLoginId()))
+			.orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS));
+	}
+
+	private void isActiveUser(User user) {
+		if (user.getStatus() != UserStatus.ACTIVE) {
+			verifyPassword(user.getPassword(), DUMMY_PASSWORD_HASH);
+			throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+		}
+	}
+
+	private void isMatchedPassword(User foundUser, UserLoginRequest request) {
+		if (!verifyPassword(foundUser.getPassword(), request.password())) {
+			throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+		}
 	}
 
 	private boolean verifyPassword(String rawPassword, String encodedPassword) {
