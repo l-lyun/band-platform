@@ -37,6 +37,7 @@ This skill turns BandMaster backend requests into small, verified Spring Boot ch
 ## Reference Router
 
 - For common responses, error codes, validation, and exception handling, read [references/api-errors.md](references/api-errors.md).
+- For defensive-code boundaries and validation/exception responsibility, read [references/defensive-code.md](references/defensive-code.md).
 - For email login, account lock, ID/PW recovery, token auth, or social login extension points, read [references/auth-flow.md](references/auth-flow.md).
 - For package layout, service boundaries, JPA, migrations, and dependency choices, read [references/spring-backend.md](references/spring-backend.md).
 - For tests and local verification, read [references/testing.md](references/testing.md).
@@ -75,6 +76,7 @@ When writing PR/Notion docs:
 
 - Do not turn this project into a framework showcase. Add dependencies only when they remove real work or match Spring defaults.
 - Prefer established Spring Boot patterns over custom infrastructure.
+- Use the assigned current worktree and branch first. Do not create another worktree unless the user asks or the current worktree cannot be used safely.
 - Keep auth security conservative; flag product requirements that expose accounts or secrets.
 - Never log passwords, reset codes, refresh tokens, OAuth tokens, or provider secrets.
 - If a requested behavior conflicts with the references, follow the user request but call out the tradeoff briefly.
