@@ -1,7 +1,8 @@
 package band.platform.domain.user.controller;
 
-import static org.mockito.Mockito.mock;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -25,6 +26,7 @@ import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
 import band.platform.global.error.GlobalExceptionHandler;
 import band.platform.global.security.cookie.RefreshTokenCookieFactory;
+import jakarta.servlet.http.HttpServletRequest;
 
 class AuthControllerTest {
 
@@ -43,9 +45,9 @@ class AuthControllerTest {
 	}
 
 	@Test
-	@DisplayName("리프레시 토큰 쿠키가 있으면 토큰을 회전하고 새 쿠키를 내려준다")
+	@DisplayName("서비스의 재발급 결과를 새 쿠키와 응답 바디로 변환한다")
 	void reissue() throws Exception {
-		when(userTokenService.reissue("old-refresh-token"))
+		when(userTokenService.reissue(any(HttpServletRequest.class)))
 			.thenReturn(new UserTokenIssueResult(
 				TokenResponse.bearer("new-access-token", 1800),
 				"new-refresh-token",
@@ -63,15 +65,18 @@ class AuthControllerTest {
 	}
 
 	@Test
-	@DisplayName("리프레시 토큰 쿠키가 없으면 A06 에러 응답을 반환한다")
+	@DisplayName("서비스의 A06 예외를 공통 에러 응답으로 변환한다")
 	void reissueWithoutCookie() throws Exception {
+		when(userTokenService.reissue(any(HttpServletRequest.class)))
+			.thenThrow(new BusinessException(ErrorCode.AUTH_TOKEN_INVALID));
+
 		mockMvc.perform(post("/api/auth/reissue"))
 			.andExpect(status().isUnauthorized())
 			.andExpect(jsonPath("$.code").value("A06"));
 	}
 
 	@Test
-	@DisplayName("로그아웃하면 리프레시 토큰을 삭제하고 쿠키를 만료한다")
+	@DisplayName("로그아웃 요청을 서비스에 위임하고 쿠키를 만료한다")
 	void logout() throws Exception {
 		mockMvc.perform(post("/api/auth/logout")
 				.cookie(new jakarta.servlet.http.Cookie("refreshToken", "refresh-token")))
@@ -79,36 +84,33 @@ class AuthControllerTest {
 			.andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("refreshToken=")))
 			.andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Max-Age=0")));
 
-		verify(userTokenService).logout("refresh-token");
+		verify(userTokenService).logout(any(HttpServletRequest.class));
 	}
 
 	@Test
-	@DisplayName("로그아웃 토큰이 유효하지 않아도 쿠키를 만료한다")
-	void logoutWithInvalidRefreshToken() throws Exception {
-		doThrow(new BusinessException(ErrorCode.AUTH_TOKEN_INVALID))
-			.when(userTokenService).logout("invalid-refresh-token");
-
+	@DisplayName("서비스가 예외를 던지지 않으면 로그아웃 쿠키를 만료한다")
+	void logoutWhenServiceDoesNotThrow() throws Exception {
 		mockMvc.perform(post("/api/auth/logout")
 				.cookie(new jakarta.servlet.http.Cookie("refreshToken", "invalid-refresh-token")))
 			.andExpect(status().isOk())
 			.andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("refreshToken=")))
 			.andExpect(header().string(HttpHeaders.SET_COOKIE, Matchers.containsString("Max-Age=0")));
 
-		verify(userTokenService).logout("invalid-refresh-token");
+		verify(userTokenService).logout(any(HttpServletRequest.class));
 	}
 
 	@Test
 	@DisplayName("로그아웃 중 내부 오류가 발생하면 E04 에러 응답을 반환한다")
 	void logoutWithInternalError() throws Exception {
 		doThrow(new BusinessException(ErrorCode.COMMON_INTERNAL_SERVER_ERROR))
-			.when(userTokenService).logout("refresh-token");
+			.when(userTokenService).logout(any(HttpServletRequest.class));
 
 		mockMvc.perform(post("/api/auth/logout")
 				.cookie(new jakarta.servlet.http.Cookie("refreshToken", "refresh-token")))
 			.andExpect(status().isInternalServerError())
 			.andExpect(jsonPath("$.code").value("E04"));
 
-		verify(userTokenService).logout("refresh-token");
+		verify(userTokenService).logout(any(HttpServletRequest.class));
 	}
 
 	private RefreshTokenCookieFactory refreshTokenCookieFactory() {

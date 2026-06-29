@@ -65,8 +65,14 @@ public class UserTokenService {
 	}
 
 	public void logout(HttpServletRequest servletRequest) {
-		refreshTokenCookieFactory.extract(servletRequest.getCookies())
-			.ifPresent(this::deleteRefreshTokenIfValid);
+		try {
+			refreshTokenCookieFactory.extract(servletRequest.getCookies())
+				.ifPresent(this::deleteRefreshTokenIfValid);
+		} catch (BusinessException exception) {
+			if (!isIgnorableLogoutError(exception.getErrorCode())) {
+				throw exception;
+			}
+		}
 	}
 
 	private Duration refreshTokenTtl() {
@@ -86,10 +92,10 @@ public class UserTokenService {
 		JwtRefreshTokenClaims claims = jwtTokenProvider.parseRefreshToken(refreshToken);
 		userRefreshTokenRepository.delete(claims.userId(), claims.tokenId());
 	}
+
 	private boolean isIgnorableLogoutError(ErrorCode errorCode) {
 		return errorCode == ErrorCode.AUTH_TOKEN_INVALID
 			|| errorCode == ErrorCode.AUTH_TOKEN_EXPIRED;
 	}
-
 
 }
