@@ -12,9 +12,12 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentMatchers;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.data.redis.core.Cursor;
+import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -34,6 +37,9 @@ class RedisUserRefreshTokenRepositoryTest {
 
 	@Mock
 	private ValueOperations<String, String> valueOperations;
+
+	@Mock
+	private Cursor<String> cursor;
 
 	@InjectMocks
 	private RedisUserRefreshTokenRepository redisUserRefreshTokenRepository;
@@ -94,6 +100,24 @@ class RedisUserRefreshTokenRepositoryTest {
 		redisUserRefreshTokenRepository.delete(USER_ID, OLD_TOKEN_ID);
 
 		verify(redisTemplate).delete(OLD_KEY);
+	}
+
+	@Test
+	@DisplayName("비밀번호 재설정 시 회원의 모든 리프레시 토큰 키를 삭제한다")
+	void deleteAll() {
+		when(redisTemplate.scan(ArgumentMatchers.any(ScanOptions.class))).thenReturn(cursor);
+		when(cursor.hasNext()).thenReturn(true, true, false);
+		when(cursor.next()).thenReturn(OLD_KEY, NEW_KEY);
+
+		redisUserRefreshTokenRepository.deleteAll(USER_ID);
+
+		ArgumentCaptor<ScanOptions> scanOptionsCaptor = ArgumentCaptor.forClass(ScanOptions.class);
+		verify(redisTemplate).scan(scanOptionsCaptor.capture());
+		ScanOptions scanOptions = scanOptionsCaptor.getValue();
+		assertThat(scanOptions.getPattern()).isEqualTo("auth:refresh:" + USER_ID + ":*");
+		assertThat(scanOptions.getCount()).isEqualTo(1000L);
+		verify(redisTemplate).delete(List.of(OLD_KEY, NEW_KEY));
+		verify(cursor).close();
 	}
 
 }

@@ -24,18 +24,21 @@ public class UserTokenService {
 	private final JwtTokenProvider jwtTokenProvider;
 	private final UserRefreshTokenRepository userRefreshTokenRepository;
 	private final RefreshTokenCookieFactory refreshTokenCookieFactory;
+	private final UserSessionLockManager userSessionLockManager;
 
 	public UserTokenIssueResult issue(Long userId, String loginId) {
-		String refreshTokenId = newRefreshTokenId();
-		JwtToken accessToken = jwtTokenProvider.issueAccessToken(userId, loginId);
-		JwtToken refreshToken = jwtTokenProvider.issueRefreshToken(userId, loginId, refreshTokenId);
-		userRefreshTokenRepository.save(userId, refreshTokenId, refreshTokenTtl());
+		return userSessionLockManager.withLock(userId, () -> {
+			String refreshTokenId = newRefreshTokenId();
+			JwtToken accessToken = jwtTokenProvider.issueAccessToken(userId, loginId);
+			JwtToken refreshToken = jwtTokenProvider.issueRefreshToken(userId, loginId, refreshTokenId);
+			userRefreshTokenRepository.save(userId, refreshTokenId, refreshTokenTtl());
 
-		return new UserTokenIssueResult(
-			TokenResponse.bearer(accessToken.value(), accessToken.expiresIn()),
-			refreshToken.value(),
-			jwtTokenProvider.refreshTokenTtlSeconds()
-		);
+			return new UserTokenIssueResult(
+				TokenResponse.bearer(accessToken.value(), accessToken.expiresIn()),
+				refreshToken.value(),
+				jwtTokenProvider.refreshTokenTtlSeconds()
+			);
+		});
 	}
 
 	public UserTokenIssueResult reissue(HttpServletRequest servletRequest) {
@@ -43,25 +46,27 @@ public class UserTokenService {
 		String refreshToken = extractRefreshToken(servletRequest);
 
 		JwtRefreshTokenClaims claims = jwtTokenProvider.parseRefreshToken(refreshToken);
-		String newRefreshTokenId = newRefreshTokenId();
-		boolean rotated = userRefreshTokenRepository.rotate(
-			claims.userId(),
-			claims.tokenId(),
-			newRefreshTokenId,
-			refreshTokenTtl()
-		);
-		if (!rotated) {
-			throw new BusinessException(ErrorCode.AUTH_TOKEN_INVALID);
-		}
+		return userSessionLockManager.withLock(claims.userId(), () -> {
+			String newRefreshTokenId = newRefreshTokenId();
+			boolean rotated = userRefreshTokenRepository.rotate(
+				claims.userId(),
+				claims.tokenId(),
+				newRefreshTokenId,
+				refreshTokenTtl()
+			);
+			if (!rotated) {
+				throw new BusinessException(ErrorCode.AUTH_TOKEN_INVALID);
+			}
 
-		JwtToken accessToken = jwtTokenProvider.issueAccessToken(claims.userId(), claims.loginId());
-		JwtToken newRefreshToken = jwtTokenProvider.issueRefreshToken(claims.userId(), claims.loginId(), newRefreshTokenId);
+			JwtToken accessToken = jwtTokenProvider.issueAccessToken(claims.userId(), claims.loginId());
+			JwtToken newRefreshToken = jwtTokenProvider.issueRefreshToken(claims.userId(), claims.loginId(), newRefreshTokenId);
 
-		return new UserTokenIssueResult(
-			TokenResponse.bearer(accessToken.value(), accessToken.expiresIn()),
-			newRefreshToken.value(),
-			jwtTokenProvider.refreshTokenTtlSeconds()
-		);
+			return new UserTokenIssueResult(
+				TokenResponse.bearer(accessToken.value(), accessToken.expiresIn()),
+				newRefreshToken.value(),
+				jwtTokenProvider.refreshTokenTtlSeconds()
+			);
+		});
 	}
 
 	public void logout(HttpServletRequest servletRequest) {
@@ -90,7 +95,9 @@ public class UserTokenService {
 
 	private void deleteRefreshTokenIfValid(String refreshToken) {
 		JwtRefreshTokenClaims claims = jwtTokenProvider.parseRefreshToken(refreshToken);
-		userRefreshTokenRepository.delete(claims.userId(), claims.tokenId());
+		userSessionLockManager.withLock(claims.userId(), () ->
+			userRefreshTokenRepository.delete(claims.userId(), claims.tokenId())
+		);
 	}
 
 	private boolean isIgnorableLogoutError(ErrorCode errorCode) {
