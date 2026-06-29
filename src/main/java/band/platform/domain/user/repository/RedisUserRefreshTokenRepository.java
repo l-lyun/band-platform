@@ -9,7 +9,6 @@ import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Repository;
-import org.springframework.util.StringUtils;
 
 import lombok.RequiredArgsConstructor;
 
