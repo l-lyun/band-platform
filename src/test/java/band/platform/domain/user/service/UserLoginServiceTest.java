@@ -18,6 +18,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
+import band.platform.domain.user.dto.FindLoginIdRequest;
+import band.platform.domain.user.dto.FindLoginIdResponse;
 import band.platform.domain.user.dto.UserLoginRequest;
 import band.platform.domain.user.dto.UserLoginResponse;
 import band.platform.domain.user.entity.Gender;
@@ -110,6 +112,42 @@ class UserLoginServiceTest {
 		assertThatThrownBy(() -> userLoginService.login(new UserLoginRequest("bandmaster", password)))
 			.isInstanceOfSatisfying(BusinessException.class, exception ->
 				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_INVALID_INPUT)
+			);
+	}
+
+	@Test
+	@DisplayName("가입된 활성 회원 이메일이면 로그인 아이디를 반환한다")
+	void findLoginId() {
+		saveUser("bandmaster", "bandmaster@example.com", RAW_PASSWORD);
+
+		FindLoginIdResponse response = userLoginService.findLoginId(
+			new FindLoginIdRequest("bandmaster@example.com")
+		);
+
+		assertThat(response.loginId()).isEqualTo("bandmaster");
+	}
+
+	@Test
+	@DisplayName("가입되지 않은 이메일이면 A03 예외를 던진다")
+	void findLoginIdUnknownEmail() {
+		assertThatThrownBy(() -> userLoginService.findLoginId(
+			new FindLoginIdRequest("unknown@example.com")
+		))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_INVALID_CREDENTIALS)
+			);
+	}
+
+	@Test
+	@DisplayName("탈퇴한 회원 이메일이면 A03 예외를 던진다")
+	void findLoginIdWithdrawnUserEmail() {
+		saveWithdrawnUser("bandmaster", "bandmaster@example.com", RAW_PASSWORD);
+
+		assertThatThrownBy(() -> userLoginService.findLoginId(
+			new FindLoginIdRequest("bandmaster@example.com")
+		))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_INVALID_CREDENTIALS)
 			);
 	}
 

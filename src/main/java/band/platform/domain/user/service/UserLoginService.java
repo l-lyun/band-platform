@@ -35,9 +35,12 @@ public class UserLoginService {
 		}
 
 		User user = userRepository.findByLoginId(request.loginId())
-			.orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS));
+			.orElseGet(() -> {
+				verifyPassword(request.password(), DUMMY_PASSWORD_HASH);
+				throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
+			});
 
-		isActiveUser(user);
+		isActiveUser(user, request.password());
 		isMatchedPassword(user, request);
 
 		return UserLoginResponse.from(user);
@@ -50,15 +53,15 @@ public class UserLoginService {
 			.orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS));
 	}
 
-	private void isActiveUser(User user) {
+	private void isActiveUser(User user, String rawPassword) {
 		if (user.getStatus() != UserStatus.ACTIVE) {
-			verifyPassword(user.getPassword(), DUMMY_PASSWORD_HASH);
+			verifyPassword(rawPassword, user.getPassword());
 			throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
 		}
 	}
 
 	private void isMatchedPassword(User foundUser, UserLoginRequest request) {
-		if (!verifyPassword(foundUser.getPassword(), request.password())) {
+		if (!verifyPassword(request.password(), foundUser.getPassword())) {
 			throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
 		}
 	}
