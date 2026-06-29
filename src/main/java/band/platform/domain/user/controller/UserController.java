@@ -14,7 +14,6 @@ import band.platform.domain.user.dto.UserLoginResponse;
 import band.platform.domain.user.dto.UserSignupRequest;
 import band.platform.domain.user.dto.UserSignupResponse;
 import band.platform.domain.user.dto.UserTokenIssueResult;
-import band.platform.domain.user.service.UserFindLoginIdService;
 import band.platform.domain.user.service.UserLoginService;
 import band.platform.domain.user.service.UserSignupService;
 import band.platform.domain.user.service.UserTokenService;
@@ -30,7 +29,6 @@ public class UserController {
 
 	private final UserSignupService userSignupService;
 	private final UserLoginService userLoginService;
-	private final UserFindLoginIdService userFindLoginIdService;
 	private final UserTokenService userTokenService;
 	private final RefreshTokenCookieFactory refreshTokenCookieFactory;
 
@@ -61,7 +59,7 @@ public class UserController {
 	public ResponseEntity<ApiResult<FindLoginIdResponse>> findLoginId(
 		@Valid @RequestBody FindLoginIdRequest request
 	) {
-		return ApiResult.ok(userFindLoginIdService.findLoginId(request)).toResponseEntity();
+		return ApiResult.ok(userLoginService.findLoginId(request)).toResponseEntity();
 	}
 
 }

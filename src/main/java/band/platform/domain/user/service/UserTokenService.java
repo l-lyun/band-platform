@@ -10,9 +10,11 @@ import band.platform.domain.user.dto.UserTokenIssueResult;
 import band.platform.domain.user.repository.UserRefreshTokenRepository;
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
+import band.platform.global.security.cookie.RefreshTokenCookieFactory;
 import band.platform.global.security.jwt.JwtRefreshTokenClaims;
 import band.platform.global.security.jwt.JwtToken;
 import band.platform.global.security.jwt.JwtTokenProvider;
+import jakarta.servlet.http.HttpServletRequest;
 import lombok.RequiredArgsConstructor;
 
 @Service
@@ -21,6 +23,7 @@ public class UserTokenService {
 
 	private final JwtTokenProvider jwtTokenProvider;
 	private final UserRefreshTokenRepository userRefreshTokenRepository;
+	private final RefreshTokenCookieFactory refreshTokenCookieFactory;
 	private final UserSessionLockManager userSessionLockManager;
 
 	public UserTokenIssueResult issue(Long userId, String loginId) {
@@ -38,7 +41,10 @@ public class UserTokenService {
 		});
 	}
 
-	public UserTokenIssueResult reissue(String refreshToken) {
+	public UserTokenIssueResult reissue(HttpServletRequest servletRequest) {
+
+		String refreshToken = extractRefreshToken(servletRequest);
+
 		JwtRefreshTokenClaims claims = jwtTokenProvider.parseRefreshToken(refreshToken);
 		return userSessionLockManager.withLock(claims.userId(), () -> {
 			String newRefreshTokenId = newRefreshTokenId();
@@ -63,11 +69,15 @@ public class UserTokenService {
 		});
 	}
 
-	public void logout(String refreshToken) {
-		JwtRefreshTokenClaims claims = jwtTokenProvider.parseRefreshToken(refreshToken);
-		userSessionLockManager.withLock(claims.userId(), () ->
-			userRefreshTokenRepository.delete(claims.userId(), claims.tokenId())
-		);
+	public void logout(HttpServletRequest servletRequest) {
+		try {
+			refreshTokenCookieFactory.extract(servletRequest.getCookies())
+				.ifPresent(this::deleteRefreshTokenIfValid);
+		} catch (BusinessException exception) {
+			if (!isIgnorableLogoutError(exception.getErrorCode())) {
+				throw exception;
+			}
+		}
 	}
 
 	private Duration refreshTokenTtl() {
@@ -76,6 +86,23 @@ public class UserTokenService {
 
 	private String newRefreshTokenId() {
 		return UUID.randomUUID().toString();
+	}
+
+	private String extractRefreshToken(HttpServletRequest request) {
+		return refreshTokenCookieFactory.extract(request.getCookies())
+			.orElseThrow(() -> new BusinessException(ErrorCode.AUTH_TOKEN_INVALID));
+	}
+
+	private void deleteRefreshTokenIfValid(String refreshToken) {
+		JwtRefreshTokenClaims claims = jwtTokenProvider.parseRefreshToken(refreshToken);
+		userSessionLockManager.withLock(claims.userId(), () ->
+			userRefreshTokenRepository.delete(claims.userId(), claims.tokenId())
+		);
+	}
+
+	private boolean isIgnorableLogoutError(ErrorCode errorCode) {
+		return errorCode == ErrorCode.AUTH_TOKEN_INVALID
+			|| errorCode == ErrorCode.AUTH_TOKEN_EXPIRED;
 	}
 
 }

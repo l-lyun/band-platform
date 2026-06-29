@@ -9,7 +9,6 @@ import org.springframework.data.redis.core.ScanOptions;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Repository;
-import org.springframework.util.StringUtils;
 
 import lombok.RequiredArgsConstructor;
 
@@ -81,12 +80,6 @@ public class RedisUserRefreshTokenRepository implements UserRefreshTokenReposito
 	}
 
 	private String refreshTokenKey(Long userId, String tokenId) {
-		if (userId == null) {
-			throw new IllegalArgumentException("userId must not be null.");
-		}
-		if (!StringUtils.hasText(tokenId)) {
-			throw new IllegalArgumentException("tokenId must not be blank.");
-		}
 		return REFRESH_TOKEN_KEY_PREFIX + userId + ":" + tokenId;
 	}
 

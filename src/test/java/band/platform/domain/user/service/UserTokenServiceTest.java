@@ -1,9 +1,12 @@
 package band.platform.domain.user.service;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -20,13 +23,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.test.util.ReflectionTestUtils;
 
 import band.platform.domain.user.dto.UserTokenIssueResult;
 import band.platform.domain.user.repository.UserRefreshTokenRepository;
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
+import band.platform.global.security.cookie.RefreshTokenCookieFactory;
 import band.platform.global.security.jwt.JwtTokenProvider;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import tools.jackson.databind.ObjectMapper;
 
 class UserTokenServiceTest {
@@ -46,7 +53,12 @@ class UserTokenServiceTest {
 		MockitoAnnotations.openMocks(this);
 		JwtTokenProvider jwtTokenProvider = createJwtTokenProvider();
 		userSessionLockManager = new RecordingUserSessionLockManager();
-		userTokenService = new UserTokenService(jwtTokenProvider, userRefreshTokenRepository, userSessionLockManager);
+		userTokenService = new UserTokenService(
+			jwtTokenProvider,
+			userRefreshTokenRepository,
+			refreshTokenCookieFactory(),
+			userSessionLockManager
+		);
 	}
 
 	@Test
@@ -71,7 +83,7 @@ class UserTokenServiceTest {
 		when(userRefreshTokenRepository.rotate(eq(USER_ID), any(), any(), eq(REFRESH_TOKEN_TTL)))
 			.thenReturn(true);
 
-		UserTokenIssueResult reissueResult = userTokenService.reissue(loginResult.refreshToken());
+		UserTokenIssueResult reissueResult = userTokenService.reissue(requestWithRefreshToken(loginResult.refreshToken()));
 
 		assertThat(reissueResult.tokenResponse().accessToken()).isNotBlank();
 		assertThat(reissueResult.refreshToken()).isNotEqualTo(loginResult.refreshToken());
@@ -87,11 +99,23 @@ class UserTokenServiceTest {
 		when(userRefreshTokenRepository.rotate(eq(USER_ID), any(), any(), eq(REFRESH_TOKEN_TTL)))
 			.thenReturn(false);
 
-		assertThatThrownBy(() -> userTokenService.reissue(loginResult.refreshToken()))
+		assertThatThrownBy(() -> userTokenService.reissue(requestWithRefreshToken(loginResult.refreshToken())))
 			.isInstanceOfSatisfying(BusinessException.class, exception ->
 				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_TOKEN_INVALID)
 			);
 		assertThat(userSessionLockManager.lockedUserIds).containsExactly(USER_ID);
+	}
+
+	@Test
+	@DisplayName("리프레시 토큰 쿠키가 없으면 A06 예외를 던진다")
+	void reissueWithoutRefreshTokenCookie() {
+		MockHttpServletRequest request = new MockHttpServletRequest();
+
+		assertThatThrownBy(() -> userTokenService.reissue(request))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_TOKEN_INVALID)
+			);
+		assertThat(userSessionLockManager.lockedUserIds).isEmpty();
 	}
 
 	@Test
@@ -100,22 +124,96 @@ class UserTokenServiceTest {
 		UserTokenIssueResult loginResult = userTokenService.issue(USER_ID, LOGIN_ID);
 		userSessionLockManager.clear();
 
-		userTokenService.logout(loginResult.refreshToken());
+		userTokenService.logout(requestWithRefreshToken(loginResult.refreshToken()));
 
 		verify(userRefreshTokenRepository).delete(eq(USER_ID), any());
 		assertThat(userSessionLockManager.lockedUserIds).containsExactly(USER_ID);
 	}
 
+	@Test
+	@DisplayName("리프레시 토큰 쿠키가 없으면 로그아웃에서 저장소를 삭제하지 않는다")
+	void logoutWithoutRefreshTokenCookie() {
+		MockHttpServletRequest request = new MockHttpServletRequest();
+
+		assertThatCode(() -> userTokenService.logout(request))
+			.doesNotThrowAnyException();
+
+		verify(userRefreshTokenRepository, never()).delete(any(), any());
+		assertThat(userSessionLockManager.lockedUserIds).isEmpty();
+	}
+
+	@Test
+	@DisplayName("유효하지 않은 리프레시 토큰 쿠키로 로그아웃해도 예외 없이 저장소를 삭제하지 않는다")
+	void logoutWithInvalidRefreshTokenCookie() {
+		assertThatCode(() -> userTokenService.logout(requestWithRefreshToken("invalid-refresh-token")))
+			.doesNotThrowAnyException();
+
+		verify(userRefreshTokenRepository, never()).delete(any(), any());
+		assertThat(userSessionLockManager.lockedUserIds).isEmpty();
+	}
+
+	@Test
+	@DisplayName("만료된 리프레시 토큰 쿠키로 로그아웃해도 예외 없이 저장소를 삭제하지 않는다")
+	void logoutWithExpiredRefreshTokenCookie() {
+		String expiredRefreshToken = expiredRefreshToken();
+
+		assertThatCode(() -> userTokenService.logout(requestWithRefreshToken(expiredRefreshToken)))
+			.doesNotThrowAnyException();
+
+		verify(userRefreshTokenRepository, never()).delete(any(), any());
+	}
+
+	@Test
+	@DisplayName("로그아웃 중 내부 오류가 발생하면 예외를 숨기지 않는다")
+	void logoutWithInternalError() {
+		UserTokenIssueResult loginResult = userTokenService.issue(USER_ID, LOGIN_ID);
+		userSessionLockManager.clear();
+		doThrow(new BusinessException(ErrorCode.COMMON_INTERNAL_SERVER_ERROR))
+			.when(userRefreshTokenRepository).delete(eq(USER_ID), any());
+
+		assertThatThrownBy(() -> userTokenService.logout(requestWithRefreshToken(loginResult.refreshToken())))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_INTERNAL_SERVER_ERROR)
+			);
+		assertThat(userSessionLockManager.lockedUserIds).containsExactly(USER_ID);
+	}
+
 	private JwtTokenProvider createJwtTokenProvider() {
+		return createJwtTokenProvider(Clock.fixed(Instant.parse("2026-06-11T00:00:00Z"), ZoneOffset.UTC), 1209600L);
+	}
+
+	private JwtTokenProvider createJwtTokenProvider(Clock clock, long refreshTokenTtlSeconds) {
 		JwtTokenProvider jwtTokenProvider = new JwtTokenProvider(
 			new ObjectMapper(),
-			Clock.fixed(Instant.parse("2026-06-11T00:00:00Z"), ZoneOffset.UTC)
+			clock
 		);
 		ReflectionTestUtils.setField(jwtTokenProvider, "issuer", "band-platform");
 		ReflectionTestUtils.setField(jwtTokenProvider, "secret", "test-secret-key-for-jwt-token-provider");
 		ReflectionTestUtils.setField(jwtTokenProvider, "accessTokenTtlSeconds", 1800L);
-		ReflectionTestUtils.setField(jwtTokenProvider, "refreshTokenTtlSeconds", 1209600L);
+		ReflectionTestUtils.setField(jwtTokenProvider, "refreshTokenTtlSeconds", refreshTokenTtlSeconds);
 		return jwtTokenProvider;
+	}
+
+	private String expiredRefreshToken() {
+		JwtTokenProvider expiredTokenProvider = createJwtTokenProvider(
+			Clock.fixed(Instant.parse("2026-06-10T00:00:00Z"), ZoneOffset.UTC),
+			1L
+		);
+		return expiredTokenProvider.issueRefreshToken(USER_ID, LOGIN_ID, "expired-token-id").value();
+	}
+
+	private RefreshTokenCookieFactory refreshTokenCookieFactory() {
+		RefreshTokenCookieFactory refreshTokenCookieFactory = new RefreshTokenCookieFactory();
+		ReflectionTestUtils.setField(refreshTokenCookieFactory, "cookieName", "refreshToken");
+		ReflectionTestUtils.setField(refreshTokenCookieFactory, "secure", false);
+		ReflectionTestUtils.setField(refreshTokenCookieFactory, "sameSite", "Lax");
+		return refreshTokenCookieFactory;
+	}
+
+	private HttpServletRequest requestWithRefreshToken(String refreshToken) {
+		MockHttpServletRequest request = new MockHttpServletRequest();
+		request.setCookies(new Cookie("refreshToken", refreshToken));
+		return request;
 	}
 
 	private static class RecordingUserSessionLockManager extends UserSessionLockManager {

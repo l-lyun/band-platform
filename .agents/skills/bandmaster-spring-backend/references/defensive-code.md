@@ -5,7 +5,7 @@
 핵심 선호:
 
 - 외부 입력 검증은 DTO, 비즈니스 규칙은 Service/Domain, 외부 연동 실패는 Adapter/Client.
-- Bean Validation 제외, 비즈니스 예외는 Service/Domain 중심.
+- DTO Bean Validation을 제외한 비즈니스/인증/인가/도메인 정책 예외는 Service/Domain 중심으로 판단하고 `BusinessException`/`ErrorCode`로 표현한다.
 - 방어 코드가 비즈니스 로직보다 커지면 안 된다. 계층 간 검증을 중복하지 않는다.
 
 ## Request DTO 검증
@@ -44,6 +44,24 @@ Domain 또는 Service에서 보호해야 하는 불변식 예시는 다음과 �
 - 만료된 토큰은 사용할 수 없다.
 - 이미 결제된 좌석은 다시 예약할 수 없다.
 
+## Controller와 Service 책임 경계
+
+Controller는 HTTP 입력을 바인딩하고 HTTP 응답을 조립하는 얇은 경계로 둔다.
+
+- Request DTO, path/query/header/cookie 같은 HTTP 입력을 메서드 인자로 받는다.
+- 성공 응답의 status, header, cookie, body를 조립한다.
+- 쿠키 생성, 삭제처럼 응답 표현에 필요한 HTTP 작업은 Controller에서 수행할 수 있다.
+- use-case 흐름을 소유한 Service가 판단해야 하는 인증/인가/도메인 실패 정책은 Controller에 중복하지 않는다.
+- Validation 실패와 `BusinessException` 실패 응답은 Controller별 `try/catch`가 아니라 기존 `GlobalExceptionHandler`/`ErrorResponse` 흐름에 맡긴다.
+
+토큰/쿠키 인증 흐름에서는 특히 책임을 나눈다.
+
+- Controller는 재발급 성공 시 새 refresh token cookie를 내려주거나, 로그아웃 응답에서 cookie를 만료할 수 있다.
+- refresh token cookie가 없는 경우, 값이 비어 있는 경우, 토큰이 만료/위조/회전 완료된 경우의 정책은 `UserTokenService` 또는 해당 인증 Service에 둔다.
+- Controller 테스트는 Service가 반환한 결과를 HTTP 응답으로 바꾸는지, Service 예외를 공통 에러 응답으로 전달하는지를 검증한다.
+- Service 테스트는 쿠키 추출, 토큰 파싱, 저장소 회전, 실패 시 `BusinessException(ErrorCode.AUTH_TOKEN_INVALID)` 같은 인증 정책을 검증한다.
+- 같은 refresh token 유효성 검사를 Controller와 Service에 동시에 두지 않는다.
+
 ## 피해야 할 방어 코드
 
 다음 코드는 기본적으로 추가하지 않는다.
@@ -66,7 +84,7 @@ Domain 또는 Service에서 보호해야 하는 불변식 예시는 다음과 �
 - JSON parsing failure
 - 외부 설정 오류
 
-변환 대상은 기존 `BusinessException`, `ErrorCode`, `ErrorResponse` 흐름을 따른다. 새 `ErrorCode`는 실제로 구분이 필요할 때만 최소로 추가한다.
+변환은 Controller가 아니라 Adapter/Client에서 수행하고, 결과는 기존 `BusinessException`, `ErrorCode`, `ErrorResponse` 흐름을 따른다. 새 `ErrorCode`는 실제로 구분이 필요할 때만 최소로 추가한다.
 
 ## 구현 원칙
 

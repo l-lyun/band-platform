@@ -7,6 +7,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import org.junit.jupiter.api.BeforeEach;
@@ -18,12 +19,11 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.test.util.ReflectionTestUtils;
 
-import band.platform.domain.user.dto.TokenResponse;
 import band.platform.domain.user.dto.FindLoginIdResponse;
+import band.platform.domain.user.dto.TokenResponse;
 import band.platform.domain.user.dto.UserLoginResponse;
 import band.platform.domain.user.dto.UserSignupResponse;
 import band.platform.domain.user.dto.UserTokenIssueResult;
-import band.platform.domain.user.service.UserFindLoginIdService;
 import band.platform.domain.user.service.UserLoginService;
 import band.platform.domain.user.service.UserSignupService;
 import band.platform.domain.user.service.UserTokenService;
@@ -38,7 +38,6 @@ class UserControllerTest {
 
 	private UserSignupService userSignupService;
 	private UserLoginService userLoginService;
-	private UserFindLoginIdService userFindLoginIdService;
 	private UserTokenService userTokenService;
 	private RefreshTokenCookieFactory refreshTokenCookieFactory;
 
@@ -46,14 +45,12 @@ class UserControllerTest {
 	void setUp() {
 		userSignupService = mock(UserSignupService.class);
 		userLoginService = mock(UserLoginService.class);
-		userFindLoginIdService = mock(UserFindLoginIdService.class);
 		userTokenService = mock(UserTokenService.class);
 		refreshTokenCookieFactory = refreshTokenCookieFactory();
 		mockMvc = MockMvcBuilders
 			.standaloneSetup(new UserController(
 				userSignupService,
 				userLoginService,
-				userFindLoginIdService,
 				userTokenService,
 				refreshTokenCookieFactory
 			))
@@ -149,9 +146,9 @@ class UserControllerTest {
 	}
 
 	@Test
-	@DisplayName("가입된 이메일로 아이디 찾기를 요청하면 로그인 아이디를 반환한다")
+	@DisplayName("가입된 이메일로 아이디 찾기를 요청하면 UserLoginService 결과를 반환한다")
 	void findLoginId() throws Exception {
-		when(userFindLoginIdService.findLoginId(any()))
+		when(userLoginService.findLoginId(any()))
 			.thenReturn(new FindLoginIdResponse("bandmaster"));
 
 		mockMvc.perform(post("/api/users/find-login-id")
@@ -161,21 +158,23 @@ class UserControllerTest {
 			.andExpect(jsonPath("$.status").value(200))
 			.andExpect(jsonPath("$.message").value("요청이 성공했습니다."))
 			.andExpect(jsonPath("$.data.loginId").value("bandmaster"));
+
+		verify(userLoginService).findLoginId(any());
 	}
 
 	@Test
-	@DisplayName("가입되지 않은 이메일로 아이디 찾기를 요청하면 E02 에러 응답을 반환한다")
+	@DisplayName("가입되지 않은 이메일로 아이디 찾기를 요청하면 A03 에러 응답을 반환한다")
 	void findLoginIdUnknownEmail() throws Exception {
-		when(userFindLoginIdService.findLoginId(any()))
-			.thenThrow(new BusinessException(ErrorCode.COMMON_NOT_FOUND));
+		when(userLoginService.findLoginId(any()))
+			.thenThrow(new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS));
 
 		mockMvc.perform(post("/api/users/find-login-id")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(findLoginIdRequest("unknown@example.com")))
-			.andExpect(status().isNotFound())
-			.andExpect(jsonPath("$.status").value(404))
-			.andExpect(jsonPath("$.code").value("E02"))
-			.andExpect(jsonPath("$.message").value("요청한 리소스를 찾을 수 없습니다."));
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.status").value(401))
+			.andExpect(jsonPath("$.code").value("A03"))
+			.andExpect(jsonPath("$.message").value("아이디 또는 비밀번호가 올바르지 않습니다."));
 	}
 
 	@Test
