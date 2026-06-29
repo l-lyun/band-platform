@@ -79,6 +79,7 @@ When writing PR/Notion docs:
 - Prefer established Spring Boot patterns over custom infrastructure.
 - Use the assigned current worktree and branch first. Do not create another worktree unless the user asks or the current worktree cannot be used safely.
 - Keep auth security conservative; flag product requirements that expose accounts or secrets.
+- Keep controllers focused on HTTP binding and response composition; put owned use-case/auth failure policy in Service/Domain. See `references/defensive-code.md`.
 - Never log passwords, reset codes, refresh tokens, OAuth tokens, or provider secrets.
 - If a requested behavior conflicts with the references, follow the user request but call out the tradeoff briefly.
 - Prefer the currently opened repository worktree for implementation so the user can inspect changes in IntelliJ. Create a separate git worktree only when the user explicitly asks for one or when the current worktree state makes direct work unsafe, and explain that before proceeding.
