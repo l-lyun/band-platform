@@ -11,6 +11,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -47,6 +48,20 @@ class AppleIdTokenVerifierTest {
 		assertThat(claims.subject()).isEqualTo("apple-subject");
 		assertThat(claims.email()).isEqualTo("member@example.com");
 		assertThat(claims.toSocialUserInfo().providerSubject()).isEqualTo("apple-subject");
+	}
+
+	@Test
+	@DisplayName("같은 Apple 설정으로 반복 검증해도 JwtDecoder를 한 번만 생성한다")
+	void reuseJwtDecoderForSameProvider() throws Exception {
+		AtomicInteger factoryCalls = new AtomicInteger();
+		Fixture fixture = fixture(factoryCalls);
+		SocialOAuthProperties.Provider properties = properties();
+
+		fixture.verifier().verifyClaims(fixture.idToken(tokenClaims()), properties, "oauth-nonce");
+		fixture.verifier()
+			.verifyClaims(fixture.idToken(tokenClaims().subject("other-apple-subject")), properties, "oauth-nonce");
+
+		assertThat(factoryCalls.get()).isEqualTo(1);
 	}
 
 	@Test
@@ -163,13 +178,20 @@ class AppleIdTokenVerifierTest {
 	}
 
 	private static Fixture fixture() throws Exception {
+		return fixture(new AtomicInteger());
+	}
+
+	private static Fixture fixture(AtomicInteger factoryCalls) throws Exception {
 		RSAKey jwk = rsaJwk();
 		NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder
 			.withJwkSource(new ImmutableJWKSet<SecurityContext>(new JWKSet(jwk.toPublicJWK())))
 			.jwsAlgorithm(SignatureAlgorithm.RS256)
 			.build();
 		jwtDecoder.setJwtValidator(jwt -> OAuth2TokenValidatorResult.success());
-		AppleIdTokenVerifier verifier = new AppleIdTokenVerifier(provider -> jwtDecoder, FIXED_CLOCK);
+		AppleIdTokenVerifier verifier = new AppleIdTokenVerifier(provider -> {
+			factoryCalls.incrementAndGet();
+			return jwtDecoder;
+		}, FIXED_CLOCK);
 		JwtEncoder jwtEncoder = new NimbusJwtEncoder(new ImmutableJWKSet<SecurityContext>(new JWKSet(jwk)));
 		return new Fixture(verifier, jwtEncoder);
 	}

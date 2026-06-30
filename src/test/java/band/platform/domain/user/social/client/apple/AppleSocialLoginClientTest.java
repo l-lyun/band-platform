@@ -82,12 +82,22 @@ class AppleSocialLoginClientTest {
 	}
 
 	@Test
-	@DisplayName("Apple 토큰 API가 400을 반환하면 A07 에러로 변환한다")
+	@DisplayName("Apple 토큰 API가 invalid_grant를 반환하면 A07 에러로 변환한다")
 	void invalidAuthorizationCode() {
 		Fixture fixture = fixture();
-		expectTokenError(fixture.server(), HttpStatus.BAD_REQUEST);
+		expectTokenError(fixture.server(), HttpStatus.BAD_REQUEST, "invalid_grant");
 
 		assertBusinessError(fixture.client(), authorizationCode("oauth-nonce"), ErrorCode.AUTH_CODE_INVALID);
+		fixture.server().verify();
+	}
+
+	@Test
+	@DisplayName("Apple 토큰 API가 invalid_client를 반환하면 A13 에러로 변환한다")
+	void invalidClientConfiguration() {
+		Fixture fixture = fixture();
+		expectTokenError(fixture.server(), HttpStatus.BAD_REQUEST, "invalid_client");
+
+		assertBusinessError(fixture.client(), authorizationCode("oauth-nonce"), ErrorCode.AUTH_SOCIAL_CONFIGURATION_INVALID);
 		fixture.server().verify();
 	}
 
@@ -274,17 +284,17 @@ class AppleSocialLoginClientTest {
 			.andRespond(withSuccess(responseBody, MediaType.APPLICATION_JSON));
 	}
 
-	private static void expectTokenError(MockRestServiceServer server, HttpStatus status) {
+	private static void expectTokenError(MockRestServiceServer server, HttpStatus status, String error) {
 		server.expect(once(), requestTo(TOKEN_URI))
 			.andExpect(method(HttpMethod.POST))
 			.andExpect(content().contentType(MediaType.APPLICATION_FORM_URLENCODED))
 			.andExpect(content().formData(tokenRequestForm()))
 			.andRespond(withStatus(status).body("""
 				{
-				  "error": "invalid_grant",
-				  "error_description": "invalid authorization code"
+				  "error": "%s",
+				  "error_description": "Apple token request failed"
 				}
-				""").contentType(MediaType.APPLICATION_JSON));
+				""".formatted(error)).contentType(MediaType.APPLICATION_JSON));
 	}
 
 	private static void expectTokenServerError(MockRestServiceServer server) {

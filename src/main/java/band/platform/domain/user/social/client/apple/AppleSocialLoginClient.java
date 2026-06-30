@@ -2,6 +2,8 @@ package band.platform.domain.user.social.client.apple;
 
 import java.net.URI;
 
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
@@ -27,6 +29,8 @@ import lombok.RequiredArgsConstructor;
 public class AppleSocialLoginClient implements SocialLoginClient {
 
 	private static final String GRANT_TYPE = "authorization_code";
+	private static final String INVALID_GRANT = "invalid_grant";
+	private static final String INVALID_CLIENT = "invalid_client";
 
 	private final RestClient restClient;
 	private final SocialOAuthProperties socialOAuthProperties;
@@ -118,11 +122,35 @@ public class AppleSocialLoginClient implements SocialLoginClient {
 
 	private BusinessException toProviderResponseException(RestClientResponseException exception) {
 		if (exception.getStatusCode().isSameCodeAs(HttpStatus.BAD_REQUEST)) {
-			return new BusinessException(ErrorCode.AUTH_CODE_INVALID);
+			return new BusinessException(tokenErrorCode(exception));
 		}
 		if (exception.getStatusCode().is5xxServerError()) {
 			return new BusinessException(ErrorCode.AUTH_SOCIAL_PROVIDER_UNAVAILABLE);
 		}
 		return new BusinessException(ErrorCode.AUTH_SOCIAL_PROVIDER_RESPONSE_INVALID);
+	}
+
+	private ErrorCode tokenErrorCode(RestClientResponseException exception) {
+		String error = tokenError(exception);
+		if (INVALID_GRANT.equals(error)) {
+			return ErrorCode.AUTH_CODE_INVALID;
+		}
+		if (INVALID_CLIENT.equals(error)) {
+			return ErrorCode.AUTH_SOCIAL_CONFIGURATION_INVALID;
+		}
+		return ErrorCode.AUTH_SOCIAL_PROVIDER_RESPONSE_INVALID;
+	}
+
+	private String tokenError(RestClientResponseException exception) {
+		try {
+			AppleTokenErrorResponse response = exception.getResponseBodyAs(AppleTokenErrorResponse.class);
+			return response == null ? null : response.error();
+		} catch (RestClientException | IllegalStateException exceptionToIgnore) {
+			return null;
+		}
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	private record AppleTokenErrorResponse(String error) {
 	}
 }

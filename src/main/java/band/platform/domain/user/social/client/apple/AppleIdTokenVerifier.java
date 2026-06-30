@@ -3,6 +3,8 @@ package band.platform.domain.user.social.client.apple;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.function.Function;
 
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
@@ -31,9 +33,10 @@ public class AppleIdTokenVerifier {
 
 	private final Function<SocialOAuthProperties.Provider, JwtDecoder> jwtDecoderFactory;
 	private final Clock clock;
+	private final ConcurrentMap<DecoderCacheKey, JwtDecoder> jwtDecoders = new ConcurrentHashMap<>();
 
 	public AppleIdTokenVerifier() {
-		this(AppleIdTokenVerifier::jwtDecoder, Clock.systemUTC());
+		this(AppleIdTokenVerifier::createJwtDecoder, Clock.systemUTC());
 	}
 
 	AppleIdTokenVerifier(Function<SocialOAuthProperties.Provider, JwtDecoder> jwtDecoderFactory) {
@@ -54,7 +57,7 @@ public class AppleIdTokenVerifier {
 		return new AppleIdTokenClaims(jwt.getSubject(), jwt.getClaimAsString("email"));
 	}
 
-	private static JwtDecoder jwtDecoder(SocialOAuthProperties.Provider properties) {
+	private static JwtDecoder createJwtDecoder(SocialOAuthProperties.Provider properties) {
 		NimbusJwtDecoder jwtDecoder = NimbusJwtDecoder.withJwkSetUri(properties.getJwkSetUri()).build();
 		jwtDecoder.setJwtValidator(jwtValidator(properties.getClientId()));
 		return jwtDecoder;
@@ -62,12 +65,17 @@ public class AppleIdTokenVerifier {
 
 	private Jwt decode(String idToken, SocialOAuthProperties.Provider properties) {
 		try {
-			return jwtDecoderFactory.apply(properties).decode(idToken);
+			return cachedJwtDecoder(properties).decode(idToken);
 		} catch (JwtException exception) {
 			throw new BusinessException(ErrorCode.AUTH_SOCIAL_PROVIDER_RESPONSE_INVALID);
 		} catch (IllegalArgumentException exception) {
 			throw new BusinessException(ErrorCode.AUTH_SOCIAL_CONFIGURATION_INVALID);
 		}
+	}
+
+	private JwtDecoder cachedJwtDecoder(SocialOAuthProperties.Provider properties) {
+		DecoderCacheKey cacheKey = new DecoderCacheKey(properties.getJwkSetUri(), properties.getClientId());
+		return jwtDecoders.computeIfAbsent(cacheKey, key -> jwtDecoderFactory.apply(properties));
 	}
 
 	private static OAuth2TokenValidator<Jwt> jwtValidator(String clientId) {
@@ -123,5 +131,8 @@ public class AppleIdTokenVerifier {
 		if (!nonce.equals(tokenNonce)) {
 			throw new BusinessException(ErrorCode.AUTH_SOCIAL_PROVIDER_RESPONSE_INVALID);
 		}
+	}
+
+	private record DecoderCacheKey(String jwkSetUri, String clientId) {
 	}
 }
