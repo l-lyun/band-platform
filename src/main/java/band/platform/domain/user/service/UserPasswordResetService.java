@@ -4,6 +4,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
+import java.util.Optional;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
@@ -81,7 +82,11 @@ public class UserPasswordResetService {
 
 	@Transactional
 	public void request(String loginId, String email) {
-		User user = findResetTarget(loginId, email);
+		Optional<User> resetTarget = findActiveResetTarget(loginId, email);
+		if (resetTarget.isEmpty()) {
+			return;
+		}
+		User user = resetTarget.get();
 		String code = secureValueGenerator.generateCode();
 		String codeHash = passwordEncoder.encode(code);
 
@@ -95,7 +100,8 @@ public class UserPasswordResetService {
 			throw new BusinessException(ErrorCode.AUTH_CODE_INVALID);
 		}
 
-		User user = findResetTarget(loginId, email);
+		User user = findActiveResetTarget(loginId, email)
+			.orElseThrow(() -> new BusinessException(ErrorCode.AUTH_CODE_INVALID));
 		UserPasswordResetRepository.PasswordResetCode resetCode = passwordResetRepository.findCode(user.getId())
 			.orElseThrow(() -> new BusinessException(ErrorCode.AUTH_CODE_EXPIRED));
 
@@ -156,9 +162,8 @@ public class UserPasswordResetService {
 		}
 	}
 
-	private User findResetTarget(String loginId, String email) {
-		return userRepository.findByLoginIdAndEmailAndStatus(loginId, email, UserStatus.ACTIVE)
-			.orElseThrow(() -> new BusinessException(ErrorCode.COMMON_NOT_FOUND));
+	private Optional<User> findActiveResetTarget(String loginId, String email) {
+		return userRepository.findByLoginIdAndEmailAndStatus(loginId, email, UserStatus.ACTIVE);
 	}
 
 	private boolean isInvalidPasswordLength(String password) {

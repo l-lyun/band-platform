@@ -4,7 +4,8 @@ public final class PublicEndpoints {
 
 	public static final String[] USER_POST_ENDPOINTS = {
 		"/api/users/sign-*",
-		"/api/users/find-login-id"
+		"/api/users/find-login-id",
+		"/api/users/password-reset/**"
 	};
 
 	public static final String[] AUTH_POST_ENDPOINTS = {
