@@ -2,6 +2,7 @@ package band.platform.domain.user.controller;
 
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.CookieValue;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -9,15 +10,20 @@ import org.springframework.web.bind.annotation.RestController;
 
 import band.platform.domain.user.dto.FindLoginIdRequest;
 import band.platform.domain.user.dto.FindLoginIdResponse;
+import band.platform.domain.user.dto.PasswordResetCompleteRequest;
+import band.platform.domain.user.dto.PasswordResetRequestCodeRequest;
+import band.platform.domain.user.dto.PasswordResetVerifyCodeRequest;
 import band.platform.domain.user.dto.UserLoginRequest;
 import band.platform.domain.user.dto.UserLoginResponse;
 import band.platform.domain.user.dto.UserSignupRequest;
 import band.platform.domain.user.dto.UserSignupResponse;
 import band.platform.domain.user.dto.UserTokenIssueResult;
 import band.platform.domain.user.service.UserLoginService;
+import band.platform.domain.user.service.UserPasswordResetService;
 import band.platform.domain.user.service.UserSignupService;
 import band.platform.domain.user.service.UserTokenService;
 import band.platform.global.ApiResult;
+import band.platform.global.security.cookie.PasswordResetTokenCookieFactory;
 import band.platform.global.security.cookie.RefreshTokenCookieFactory;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -30,7 +36,9 @@ public class UserController {
 	private final UserSignupService userSignupService;
 	private final UserLoginService userLoginService;
 	private final UserTokenService userTokenService;
+	private final UserPasswordResetService userPasswordResetService;
 	private final RefreshTokenCookieFactory refreshTokenCookieFactory;
+	private final PasswordResetTokenCookieFactory passwordResetTokenCookieFactory;
 
 	@PostMapping("/sign-up")
 	public ResponseEntity<ApiResult<UserSignupResponse>> signup(
@@ -60,6 +68,35 @@ public class UserController {
 		@Valid @RequestBody FindLoginIdRequest request
 	) {
 		return ApiResult.ok(userLoginService.findLoginId(request)).toResponseEntity();
+	}
+
+	@PostMapping("/password-reset/request")
+	public ResponseEntity<ApiResult<Void>> requestPasswordResetCode(
+		@Valid @RequestBody PasswordResetRequestCodeRequest request
+	) {
+		userPasswordResetService.request(request.loginId(), request.email());
+		return ApiResult.ok().toResponseEntity();
+	}
+
+	@PostMapping("/password-reset/verify")
+	public ResponseEntity<ApiResult<Void>> verifyPasswordResetCode(
+		@Valid @RequestBody PasswordResetVerifyCodeRequest request
+	) {
+		String resetToken = userPasswordResetService.verify(request.loginId(), request.email(), request.code());
+		return ResponseEntity.ok()
+			.header(HttpHeaders.SET_COOKIE, passwordResetTokenCookieFactory.create(resetToken).toString())
+			.body(ApiResult.ok());
+	}
+
+	@PostMapping("/password-reset/complete")
+	public ResponseEntity<ApiResult<Void>> completePasswordReset(
+		@CookieValue(name = PasswordResetTokenCookieFactory.COOKIE_NAME, required = false) String resetToken,
+		@Valid @RequestBody PasswordResetCompleteRequest request
+	) {
+		userPasswordResetService.complete(resetToken, request.newPassword());
+		return ResponseEntity.ok()
+			.header(HttpHeaders.SET_COOKIE, passwordResetTokenCookieFactory.delete().toString())
+			.body(ApiResult.ok());
 	}
 
 }

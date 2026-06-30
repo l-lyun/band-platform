@@ -103,29 +103,29 @@ class UserPasswordResetServiceTest {
 	}
 
 	@Test
-	@DisplayName("회원 정보가 일치하지 않으면 재설정 코드를 발급하지 않는다")
+	@DisplayName("회원 정보가 일치하지 않으면 성공처럼 종료하고 재설정 코드를 발급하지 않는다")
 	void requestUnknownUser() {
 		when(userRepository.findByLoginIdAndEmailAndStatus(LOGIN_ID, EMAIL, UserStatus.ACTIVE))
 			.thenReturn(Optional.empty());
 
-		assertThatThrownBy(() -> service.request(LOGIN_ID, EMAIL))
-			.isInstanceOfSatisfying(BusinessException.class, exception ->
-				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_NOT_FOUND)
-			);
+		service.request(LOGIN_ID, EMAIL);
+
 		verify(passwordResetRepository, never()).saveCode(any(), anyString(), any());
+		assertThat(mailSender.email).isNull();
+		assertThat(mailSender.code).isNull();
 	}
 
 	@Test
-	@DisplayName("탈퇴한 회원은 재설정 코드 발급 대상에서 제외한다")
+	@DisplayName("탈퇴한 회원은 성공처럼 종료하고 재설정 코드 발급 대상에서 제외한다")
 	void requestWithdrawnUser() {
 		when(userRepository.findByLoginIdAndEmailAndStatus(LOGIN_ID, EMAIL, UserStatus.ACTIVE))
 			.thenReturn(Optional.empty());
 
-		assertThatThrownBy(() -> service.request(LOGIN_ID, EMAIL))
-			.isInstanceOfSatisfying(BusinessException.class, exception ->
-				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_NOT_FOUND)
-			);
+		service.request(LOGIN_ID, EMAIL);
+
 		verify(passwordResetRepository, never()).saveCode(any(), anyString(), any());
+		assertThat(mailSender.email).isNull();
+		assertThat(mailSender.code).isNull();
 	}
 
 	@Test
@@ -229,14 +229,14 @@ class UserPasswordResetServiceTest {
 	}
 
 	@Test
-	@DisplayName("탈퇴한 회원은 재설정 코드 검증 대상에서 제외한다")
+	@DisplayName("탈퇴한 회원은 재설정 코드 검증에서 A07 예외로 정규화한다")
 	void verifyWithdrawnUser() {
 		when(userRepository.findByLoginIdAndEmailAndStatus(LOGIN_ID, EMAIL, UserStatus.ACTIVE))
 			.thenReturn(Optional.empty());
 
 		assertThatThrownBy(() -> service.verify(LOGIN_ID, EMAIL, RESET_CODE))
 			.isInstanceOfSatisfying(BusinessException.class, exception ->
-				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_NOT_FOUND)
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_CODE_INVALID)
 			);
 		verify(passwordResetRepository, never()).findCode(any());
 	}
