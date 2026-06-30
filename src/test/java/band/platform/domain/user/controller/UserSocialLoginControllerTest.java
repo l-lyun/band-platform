@@ -20,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import band.platform.domain.user.dto.SocialLoginResponse;
+import band.platform.domain.user.dto.SocialLoginStartResponse;
 import band.platform.domain.user.dto.TokenResponse;
 import band.platform.domain.user.dto.UserTokenIssueResult;
 import band.platform.domain.user.entity.SocialProvider;
@@ -57,6 +58,41 @@ class UserSocialLoginControllerTest {
 			))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.build();
+	}
+
+	@Test
+	@DisplayName("소셜 로그인 시작 요청이면 authorization URL과 state를 반환한다")
+	void socialAuthorizationContract() throws Exception {
+		when(userSocialLoginService.start(any()))
+			.thenReturn(new SocialLoginStartResponse(
+				SocialProvider.NAVER,
+				"https://nid.naver.com/oauth2.0/authorize?response_type=code&state=oauth-state",
+				"oauth-state"
+			));
+
+		mockMvc.perform(post("/api/users/social/authorization")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(socialLoginStartRequest("NAVER")))
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value(200))
+			.andExpect(jsonPath("$.message").value("요청이 성공했습니다."))
+			.andExpect(jsonPath("$.data.provider").value("NAVER"))
+			.andExpect(jsonPath("$.data.authorizationUrl").value("https://nid.naver.com/oauth2.0/authorize?response_type=code&state=oauth-state"))
+			.andExpect(jsonPath("$.data.state").value("oauth-state"))
+			.andExpect(jsonPath("$.data.providerSubject").doesNotExist())
+			.andExpect(jsonPath("$.data.accessToken").doesNotExist());
+	}
+
+	@Test
+	@DisplayName("소셜 로그인 시작 provider가 없으면 E01 에러 응답을 반환한다")
+	void socialAuthorizationMissingProvider() throws Exception {
+		mockMvc.perform(post("/api/users/social/authorization")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("E01"))
+			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
 	}
 
 	@Test
@@ -198,6 +234,14 @@ class UserSocialLoginControllerTest {
 				"redirectUri": "%s"
 			}
 			""".formatted(provider, code, state, redirectUri);
+	}
+
+	private String socialLoginStartRequest(String provider) {
+		return """
+			{
+				"provider": "%s"
+			}
+			""".formatted(provider);
 	}
 
 	private RefreshTokenCookieFactory refreshTokenCookieFactory() {

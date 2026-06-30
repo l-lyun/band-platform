@@ -108,6 +108,16 @@ class SecurityConfigTest {
 	}
 
 	@Test
+	@DisplayName("소셜 로그인 시작 POST는 익명 요청이 인증 차단이 아니라 컨트롤러 검증까지 도달한다")
+	void socialAuthorizationPublicPostReachesControllerValidation() throws Exception {
+		mockMvc.perform(post("/api/users/social/authorization")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("E01"));
+	}
+
+	@Test
 	@DisplayName("소셜 로그인 POST는 익명 요청이 인증 차단이 아니라 컨트롤러 검증까지 도달한다")
 	void socialSignInPublicPostReachesControllerValidation() throws Exception {
 		mockMvc.perform(post("/api/users/social/sign-in")

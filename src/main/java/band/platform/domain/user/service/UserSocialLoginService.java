@@ -2,9 +2,12 @@ package band.platform.domain.user.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.web.util.UriComponentsBuilder;
 
 import band.platform.domain.user.dto.SocialLoginRequest;
 import band.platform.domain.user.dto.SocialLoginResponse;
+import band.platform.domain.user.dto.SocialLoginStartRequest;
+import band.platform.domain.user.dto.SocialLoginStartResponse;
 import band.platform.domain.user.dto.UserTokenIssueResult;
 import band.platform.domain.user.entity.SocialAccount;
 import band.platform.domain.user.entity.User;
@@ -13,6 +16,7 @@ import band.platform.domain.user.repository.SocialAccountRepository;
 import band.platform.domain.user.social.SocialAuthorizationCode;
 import band.platform.domain.user.social.SocialLoginClient;
 import band.platform.domain.user.social.SocialLoginClientResolver;
+import band.platform.domain.user.social.SocialOAuthProperties;
 import band.platform.domain.user.social.SocialOAuthState;
 import band.platform.domain.user.social.SocialOAuthStateService;
 import band.platform.domain.user.social.SocialUserInfo;
@@ -26,8 +30,19 @@ public class UserSocialLoginService {
 
 	private final SocialLoginClientResolver socialLoginClientResolver;
 	private final SocialOAuthStateService socialOAuthStateService;
+	private final SocialOAuthProperties socialOAuthProperties;
 	private final SocialAccountRepository socialAccountRepository;
 	private final UserTokenService userTokenService;
+
+	public SocialLoginStartResponse start(SocialLoginStartRequest request) {
+		SocialOAuthState oauthState = socialOAuthStateService.issue(request.provider());
+		SocialOAuthProperties.Provider providerProperties = socialOAuthProperties.provider(request.provider());
+		return new SocialLoginStartResponse(
+			request.provider(),
+			authorizationUrl(providerProperties, oauthState),
+			oauthState.state()
+		);
+	}
 
 	@Transactional
 	public UserSocialLoginResult signIn(SocialLoginRequest request) {
@@ -79,6 +94,24 @@ public class UserSocialLoginService {
 			),
 			null
 		);
+	}
+
+	private String authorizationUrl(SocialOAuthProperties.Provider providerProperties, SocialOAuthState oauthState) {
+		UriComponentsBuilder builder = UriComponentsBuilder
+			.fromUriString(providerProperties.getAuthorizationUri())
+			.queryParam("response_type", "code")
+			.queryParam("client_id", providerProperties.getClientId())
+			.queryParam("redirect_uri", providerProperties.getRedirectUri())
+			.queryParam("state", oauthState.state());
+
+		if (!providerProperties.getScopes().isEmpty()) {
+			builder.queryParam("scope", String.join(" ", providerProperties.getScopes()));
+		}
+		if (providerProperties.isOpenId()) {
+			builder.queryParam("nonce", oauthState.nonce());
+		}
+
+		return builder.build().encode().toUriString();
 	}
 
 }
