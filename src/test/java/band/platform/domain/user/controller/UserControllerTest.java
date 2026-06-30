@@ -33,6 +33,7 @@ import band.platform.domain.user.dto.UserSignupResponse;
 import band.platform.domain.user.dto.UserTokenIssueResult;
 import band.platform.domain.user.service.UserLoginService;
 import band.platform.domain.user.service.UserPasswordResetService;
+import band.platform.domain.user.service.UserSocialLoginService;
 import band.platform.domain.user.service.UserSignupService;
 import band.platform.domain.user.service.UserTokenService;
 import band.platform.global.error.BusinessException;
@@ -67,6 +68,7 @@ class UserControllerTest {
 				userLoginService,
 				userTokenService,
 				userPasswordResetService,
+				mock(UserSocialLoginService.class),
 				refreshTokenCookieFactory,
 				passwordResetTokenCookieFactory
 			))
