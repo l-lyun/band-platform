@@ -32,6 +32,7 @@ This skill turns BandMaster backend requests into small, verified Spring Boot ch
 
 - Use OMO as a planning gate, not a replacement for this short router or its focused references.
 - Broad, cross-cutting, ambiguous, multi-thread, or high-risk backend work should go through `.omo/plans/<slug>.md` before implementation.
+- 방어 코드 책임 경계가 중요한 넓거나 고위험 작업은 `references/defensive-code.md` 기준으로 Controller/Service/Domain/Infrastructure 책임 분리표를 먼저 작성하고, 승인 후 구현한다.
 - If a plan already exists, read it before editing and follow its scoped task, evidence, and cleanup requirements.
 - For narrow single-slice work, keep using the reference router below and the smallest useful verification.
 
