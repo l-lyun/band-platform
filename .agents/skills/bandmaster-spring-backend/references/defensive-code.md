@@ -8,6 +8,28 @@
 - DTO Bean Validation을 제외한 비즈니스/인증/인가/도메인 정책 예외는 Service/Domain 중심으로 판단하고 `BusinessException`/`ErrorCode`로 표현한다.
 - 방어 코드가 비즈니스 로직보다 커지면 안 된다. 계층 간 검증을 중복하지 않는다.
 
+## 구현 전 책임 분리 워크플로우
+
+방어 코드가 많아질 수 있는 작업은 바로 코드를 쓰지 말고 먼저 책임을 계층별로 나눈다.
+
+1. 구현 전 Controller, Service, Domain, Infrastructure 책임을 표로 정리한다. 각 계층이 검증해야 할 값과 중복 방어 코드가 생길 수 있는 지점을 함께 적고, 아직 코드는 작성하지 않는다.
+2. 사용자가 승인하면 그 책임 분리에 맞춰 구현한다. 앞 계층에서 보장된 null/blank/format 검사를 Repository나 Adapter 내부에서 반복하지 않는다.
+3. 구현 후 중복 방어 코드 후보를 다시 찾고, 각 후보가 해당 계층에서 반드시 필요한 보호인지 앞 계층에서 이미 보장된 값인지 판정한다.
+
+| 계층 | 검증/보호 책임 | 중복 방어 코드 위험 지점 |
+| --- | --- | --- |
+| Controller | HTTP 입력 바인딩, `@Valid` 적용, path/query/header/cookie 존재 여부처럼 HTTP 경계에서만 알 수 있는 값 확인, 응답 status/header/cookie 조립 | DTO Bean Validation과 같은 null/blank/format 검사를 Service에 다시 넘기기 전 반복하거나, Service가 소유한 인증/인가/도메인 정책을 `try/catch`로 중복 처리하는 경우 |
+| Service | 유스케이스 흐름, 조회 결과 없음, 인증/인가, 소유권, 중복 데이터, 외부 시스템 호출 실패 정책, Domain 메서드 호출 순서 판단 | DTO에서 보장한 단순 입력 검사를 반복하거나, Domain 불변식을 Service와 Domain 양쪽에 같은 조건문으로 배치하는 경우 |
+| Domain | 엔티티 상태 불변식, 상태 전이 가능 여부, 도메인 규칙 위반 방지 | Service에서 이미 판단한 use-case 권한 검사를 Domain 내부에 다시 넣거나, 단순 HTTP 입력 검증을 Domain 생성자/메서드에서 반복하는 경우 |
+| Infrastructure | Repository, Adapter, Client, provider 같은 외부 경계의 실패 변환, null body/4xx/5xx/timeout/parsing/config 오류 보호 | Service/DTO가 보장한 필드의 null/blank 검사를 Repository 쿼리 메서드 앞에서 반복하거나, 외부 provider 실패를 Controller/Service와 Adapter에서 동시에 래핑하는 경우 |
+
+구현 후 감사 규칙:
+
+- `null`, `blank`, `isEmpty`, `isPresent`, `try/catch`, `Optional`, `BusinessException`, `ErrorCode` 주변을 훑어 중복 후보를 찾는다.
+- 후보마다 "이 계층이 직접 보호해야 하는 경계/불변식인가?"와 "앞 계층에서 이미 보장했는가?"를 한 번씩 판정한다.
+- 앞 계층 보장이 명확하면 제거하거나 더 앞 계층으로 책임을 이동한다.
+- 외부 입력, 도메인 불변식, 외부 provider 응답처럼 현재 계층에서만 알 수 있는 위험은 유지한다.
+
 ## Request DTO 검증
 
 간단한 입력값 검증은 Request DTO에서 Bean Validation으로 처리한다.
