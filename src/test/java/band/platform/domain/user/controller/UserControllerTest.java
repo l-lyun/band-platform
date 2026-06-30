@@ -1,21 +1,25 @@
 package band.platform.domain.user.controller;
 
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
-import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
-
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+
+import java.time.Duration;
+import java.util.Arrays;
+
+import jakarta.servlet.http.Cookie;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
-import jakarta.servlet.http.Cookie;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
@@ -34,6 +38,8 @@ import band.platform.domain.user.service.UserTokenService;
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
 import band.platform.global.error.GlobalExceptionHandler;
+import band.platform.global.security.config.PublicEndpoints;
+import band.platform.global.security.cookie.PasswordResetTokenCookieFactory;
 import band.platform.global.security.cookie.RefreshTokenCookieFactory;
 
 class UserControllerTest {
@@ -45,6 +51,7 @@ class UserControllerTest {
 	private UserTokenService userTokenService;
 	private UserPasswordResetService userPasswordResetService;
 	private RefreshTokenCookieFactory refreshTokenCookieFactory;
+	private PasswordResetTokenCookieFactory passwordResetTokenCookieFactory;
 
 	@BeforeEach
 	void setUp() {
@@ -53,13 +60,15 @@ class UserControllerTest {
 		userTokenService = mock(UserTokenService.class);
 		userPasswordResetService = mock(UserPasswordResetService.class);
 		refreshTokenCookieFactory = refreshTokenCookieFactory();
+		passwordResetTokenCookieFactory = passwordResetTokenCookieFactory();
 		mockMvc = MockMvcBuilders
 			.standaloneSetup(new UserController(
 				userSignupService,
 				userLoginService,
 				userTokenService,
 				userPasswordResetService,
-				refreshTokenCookieFactory
+				refreshTokenCookieFactory,
+				passwordResetTokenCookieFactory
 			))
 			.setControllerAdvice(new GlobalExceptionHandler())
 			.build();
@@ -233,6 +242,11 @@ class UserControllerTest {
 			.andExpect(status().isOk())
 			.andExpect(jsonPath("$.status").value(200))
 			.andExpect(jsonPath("$.message").value("요청이 성공했습니다."))
+			.andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("passwordResetToken=reset-token")))
+			.andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("Path=/api/users/password-reset")))
+			.andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("Max-Age=600")))
+			.andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("HttpOnly")))
+			.andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("SameSite=Lax")))
 			.andExpect(jsonPath("$.data.resetToken").doesNotExist())
 			.andExpect(jsonPath("$.data.token").doesNotExist());
 
@@ -247,6 +261,11 @@ class UserControllerTest {
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(passwordResetCompleteRequest("newPassword123!")))
 			.andExpect(status().isOk())
+			.andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("passwordResetToken=")))
+			.andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("Path=/api/users/password-reset")))
+			.andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("Max-Age=0")))
+			.andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("HttpOnly")))
+			.andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("SameSite=Lax")))
 			.andExpect(jsonPath("$.status").value(200))
 			.andExpect(jsonPath("$.message").value("요청이 성공했습니다."));
 
@@ -263,6 +282,22 @@ class UserControllerTest {
 			.andExpect(jsonPath("$.status").value(400))
 			.andExpect(jsonPath("$.code").value("E01"))
 			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
+	}
+
+	@Test
+	@DisplayName("비밀번호 재설정 대상 계정이 없으면 E02 에러 응답을 반환한다")
+	void requestPasswordResetCodeUnknownAccount() throws Exception {
+		doThrow(new BusinessException(ErrorCode.COMMON_NOT_FOUND))
+			.when(userPasswordResetService)
+			.request(eq("unknown"), eq("unknown@example.com"));
+
+		mockMvc.perform(post("/api/users/password-reset/request")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(passwordResetRequestCodeRequest("unknown", "unknown@example.com")))
+			.andExpect(status().isNotFound())
+			.andExpect(jsonPath("$.status").value(404))
+			.andExpect(jsonPath("$.code").value("E02"))
+			.andExpect(jsonPath("$.message").value("요청한 리소스를 찾을 수 없습니다."));
 	}
 
 	@Test
@@ -340,6 +375,12 @@ class UserControllerTest {
 			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
 	}
 
+	@Test
+	@DisplayName("비밀번호 재설정 API는 공개 POST 엔드포인트에 포함된다")
+	void passwordResetPublicEndpoint() {
+		assertTrue(Arrays.asList(PublicEndpoints.USER_POST_ENDPOINTS).contains("/api/users/password-reset/**"));
+	}
+
 	private String signupRequest(String loginId, String email, boolean privacyPolicyAgreed) {
 		return """
 			{
@@ -408,6 +449,14 @@ class UserControllerTest {
 		ReflectionTestUtils.setField(refreshTokenCookieFactory, "secure", false);
 		ReflectionTestUtils.setField(refreshTokenCookieFactory, "sameSite", "Lax");
 		return refreshTokenCookieFactory;
+	}
+
+	private PasswordResetTokenCookieFactory passwordResetTokenCookieFactory() {
+		PasswordResetTokenCookieFactory passwordResetTokenCookieFactory = new PasswordResetTokenCookieFactory();
+		ReflectionTestUtils.setField(passwordResetTokenCookieFactory, "tokenTtl", Duration.ofMinutes(10));
+		ReflectionTestUtils.setField(passwordResetTokenCookieFactory, "secure", false);
+		ReflectionTestUtils.setField(passwordResetTokenCookieFactory, "sameSite", "Lax");
+		return passwordResetTokenCookieFactory;
 	}
 
 }

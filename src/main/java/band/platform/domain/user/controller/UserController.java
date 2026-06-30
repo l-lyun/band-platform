@@ -23,6 +23,7 @@ import band.platform.domain.user.service.UserPasswordResetService;
 import band.platform.domain.user.service.UserSignupService;
 import band.platform.domain.user.service.UserTokenService;
 import band.platform.global.ApiResult;
+import band.platform.global.security.cookie.PasswordResetTokenCookieFactory;
 import band.platform.global.security.cookie.RefreshTokenCookieFactory;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -37,6 +38,7 @@ public class UserController {
 	private final UserTokenService userTokenService;
 	private final UserPasswordResetService userPasswordResetService;
 	private final RefreshTokenCookieFactory refreshTokenCookieFactory;
+	private final PasswordResetTokenCookieFactory passwordResetTokenCookieFactory;
 
 	@PostMapping("/sign-up")
 	public ResponseEntity<ApiResult<UserSignupResponse>> signup(
@@ -80,17 +82,21 @@ public class UserController {
 	public ResponseEntity<ApiResult<Void>> verifyPasswordResetCode(
 		@Valid @RequestBody PasswordResetVerifyCodeRequest request
 	) {
-		userPasswordResetService.verify(request.loginId(), request.email(), request.code());
-		return ApiResult.ok().toResponseEntity();
+		String resetToken = userPasswordResetService.verify(request.loginId(), request.email(), request.code());
+		return ResponseEntity.ok()
+			.header(HttpHeaders.SET_COOKIE, passwordResetTokenCookieFactory.create(resetToken).toString())
+			.body(ApiResult.ok());
 	}
 
 	@PostMapping("/password-reset/complete")
 	public ResponseEntity<ApiResult<Void>> completePasswordReset(
-		@CookieValue("passwordResetToken") String resetToken,
+		@CookieValue(name = PasswordResetTokenCookieFactory.COOKIE_NAME, required = false) String resetToken,
 		@Valid @RequestBody PasswordResetCompleteRequest request
 	) {
 		userPasswordResetService.complete(resetToken, request.newPassword());
-		return ApiResult.ok().toResponseEntity();
+		return ResponseEntity.ok()
+			.header(HttpHeaders.SET_COOKIE, passwordResetTokenCookieFactory.delete().toString())
+			.body(ApiResult.ok());
 	}
 
 }
