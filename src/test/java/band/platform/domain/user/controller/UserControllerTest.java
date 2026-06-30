@@ -285,19 +285,16 @@ class UserControllerTest {
 	}
 
 	@Test
-	@DisplayName("비밀번호 재설정 대상 계정이 없으면 E02 에러 응답을 반환한다")
+	@DisplayName("비밀번호 재설정 대상 계정이 없어도 성공 응답을 반환한다")
 	void requestPasswordResetCodeUnknownAccount() throws Exception {
-		doThrow(new BusinessException(ErrorCode.COMMON_NOT_FOUND))
-			.when(userPasswordResetService)
-			.request(eq("unknown"), eq("unknown@example.com"));
-
 		mockMvc.perform(post("/api/users/password-reset/request")
 				.contentType(MediaType.APPLICATION_JSON)
 				.content(passwordResetRequestCodeRequest("unknown", "unknown@example.com")))
-			.andExpect(status().isNotFound())
-			.andExpect(jsonPath("$.status").value(404))
-			.andExpect(jsonPath("$.code").value("E02"))
-			.andExpect(jsonPath("$.message").value("요청한 리소스를 찾을 수 없습니다."));
+			.andExpect(status().isOk())
+			.andExpect(jsonPath("$.status").value(200))
+			.andExpect(jsonPath("$.message").value("요청이 성공했습니다."));
+
+		verify(userPasswordResetService).request("unknown", "unknown@example.com");
 	}
 
 	@Test
@@ -313,6 +310,57 @@ class UserControllerTest {
 			.andExpect(jsonPath("$.status").value(400))
 			.andExpect(jsonPath("$.code").value("A07"))
 			.andExpect(jsonPath("$.message").value("인증 코드가 올바르지 않습니다."));
+	}
+
+	@Test
+	@DisplayName("비밀번호 재설정 대상 계정이 없어도 코드 검증은 A07 에러 응답을 반환한다")
+	void verifyPasswordResetCodeUnknownAccount() throws Exception {
+		when(userPasswordResetService.verify(eq("unknown"), eq("unknown@example.com"), eq("123456")))
+			.thenThrow(new BusinessException(ErrorCode.AUTH_CODE_INVALID));
+
+		mockMvc.perform(post("/api/users/password-reset/verify")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(passwordResetVerifyCodeRequest("unknown", "unknown@example.com", "123456")))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("A07"))
+			.andExpect(jsonPath("$.message").value("인증 코드가 올바르지 않습니다."));
+	}
+
+	@Test
+	@DisplayName("비밀번호 재설정 인증 코드가 6자리를 초과하면 E01 에러 응답을 반환한다")
+	void verifyPasswordResetCodeTooLong() throws Exception {
+		mockMvc.perform(post("/api/users/password-reset/verify")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(passwordResetVerifyCodeRequest("bandmaster", "bandmaster@example.com", "1234567")))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("E01"))
+			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
+	}
+
+	@Test
+	@DisplayName("비밀번호 재설정 인증 코드가 6자리보다 짧으면 E01 에러 응답을 반환한다")
+	void verifyPasswordResetCodeTooShort() throws Exception {
+		mockMvc.perform(post("/api/users/password-reset/verify")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(passwordResetVerifyCodeRequest("bandmaster", "bandmaster@example.com", "12345")))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("E01"))
+			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
+	}
+
+	@Test
+	@DisplayName("비밀번호 재설정 인증 코드가 숫자가 아니면 E01 에러 응답을 반환한다")
+	void verifyPasswordResetCodeNonNumeric() throws Exception {
+		mockMvc.perform(post("/api/users/password-reset/verify")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(passwordResetVerifyCodeRequest("bandmaster", "bandmaster@example.com", "ABC123")))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("E01"))
+			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
 	}
 
 	@Test
