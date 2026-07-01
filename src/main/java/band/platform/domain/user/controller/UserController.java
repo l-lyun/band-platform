@@ -13,6 +13,10 @@ import band.platform.domain.user.dto.FindLoginIdResponse;
 import band.platform.domain.user.dto.PasswordResetCompleteRequest;
 import band.platform.domain.user.dto.PasswordResetRequestCodeRequest;
 import band.platform.domain.user.dto.PasswordResetVerifyCodeRequest;
+import band.platform.domain.user.dto.SocialLoginRequest;
+import band.platform.domain.user.dto.SocialLoginResponse;
+import band.platform.domain.user.dto.SocialLoginStartRequest;
+import band.platform.domain.user.dto.SocialLoginStartResponse;
 import band.platform.domain.user.dto.UserLoginRequest;
 import band.platform.domain.user.dto.UserLoginResponse;
 import band.platform.domain.user.dto.UserSignupRequest;
@@ -20,6 +24,8 @@ import band.platform.domain.user.dto.UserSignupResponse;
 import band.platform.domain.user.dto.UserTokenIssueResult;
 import band.platform.domain.user.service.UserLoginService;
 import band.platform.domain.user.service.UserPasswordResetService;
+import band.platform.domain.user.service.UserSocialLoginResult;
+import band.platform.domain.user.service.UserSocialLoginService;
 import band.platform.domain.user.service.UserSignupService;
 import band.platform.domain.user.service.UserTokenService;
 import band.platform.global.ApiResult;
@@ -37,6 +43,7 @@ public class UserController {
 	private final UserLoginService userLoginService;
 	private final UserTokenService userTokenService;
 	private final UserPasswordResetService userPasswordResetService;
+	private final UserSocialLoginService userSocialLoginService;
 	private final RefreshTokenCookieFactory refreshTokenCookieFactory;
 	private final PasswordResetTokenCookieFactory passwordResetTokenCookieFactory;
 
@@ -61,6 +68,32 @@ public class UserController {
 					.toString()
 			)
 			.body(ApiResult.ok(loginResponse.withToken(tokenIssueResult.tokenResponse())));
+	}
+
+	@PostMapping("/social/sign-in")
+	public ResponseEntity<ApiResult<SocialLoginResponse>> socialSignIn(
+		@Valid @RequestBody SocialLoginRequest request
+	) {
+		UserSocialLoginResult socialLoginResult = userSocialLoginService.signIn(request);
+		UserTokenIssueResult tokenIssueResult = socialLoginResult.tokenIssueResult();
+		if (tokenIssueResult == null) {
+			return ApiResult.ok(socialLoginResult.response()).toResponseEntity();
+		}
+
+		return ResponseEntity.ok()
+			.header(
+				HttpHeaders.SET_COOKIE,
+				refreshTokenCookieFactory.create(tokenIssueResult.refreshToken(), tokenIssueResult.refreshTokenMaxAgeSeconds())
+					.toString()
+			)
+			.body(ApiResult.ok(socialLoginResult.response()));
+	}
+
+	@PostMapping("/social/authorization")
+	public ResponseEntity<ApiResult<SocialLoginStartResponse>> socialAuthorization(
+		@Valid @RequestBody SocialLoginStartRequest request
+	) {
+		return ApiResult.ok(userSocialLoginService.start(request)).toResponseEntity();
 	}
 
 	@PostMapping("/find-login-id")
