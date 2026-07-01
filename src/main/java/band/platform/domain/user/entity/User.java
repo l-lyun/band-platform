@@ -36,6 +36,10 @@ public class User extends BaseEntity {
 	@Column(nullable = false)
 	private Boolean opened;
 
+	@Column(length = 20)
+	@Enumerated(EnumType.STRING)
+	private Position position;
+
 	@Column(nullable = false)
 	private String phoneNumber;
 
@@ -67,6 +71,7 @@ public class User extends BaseEntity {
 		String email,
 		String description,
 		Boolean opened,
+		Position position,
 		String phoneNumber,
 		Gender gender,
 		String profileImg,
@@ -80,6 +85,7 @@ public class User extends BaseEntity {
 		this.email = email;
 		this.description = description;
 		this.opened = opened;
+		this.position = position;
 		this.phoneNumber = phoneNumber;
 		this.gender = gender;
 		this.profileImg = profileImg;
@@ -109,6 +115,7 @@ public class User extends BaseEntity {
 			email,
 			description,
 			opened,
+			null,
 			phoneNumber,
 			gender,
 			profileImg,
@@ -136,6 +143,7 @@ public class User extends BaseEntity {
 			email,
 			null,
 			false,
+			null,
 			phoneNumber,
 			null,
 			null,
@@ -147,6 +155,22 @@ public class User extends BaseEntity {
 
 	public void changePassword(String password) {
 		this.password = password;
+	}
+
+	public void updateProfile(
+		String name,
+		Position position,
+		String profileImg,
+		Gender gender,
+		String description,
+		Boolean opened
+	) {
+		this.name = name;
+		this.position = position;
+		this.profileImg = profileImg;
+		this.gender = gender;
+		this.description = description;
+		this.opened = opened;
 	}
 
 }
