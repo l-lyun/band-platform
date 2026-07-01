@@ -2,54 +2,22 @@ package band.platform.domain.board.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import java.util.List;
-
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.authority.SimpleGrantedAuthority;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.web.method.annotation.AuthenticationPrincipalArgumentResolver;
-import org.springframework.test.web.servlet.MockMvc;
-import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import band.platform.domain.board.dto.PostCreateResponse;
 import band.platform.domain.board.entity.BoardType;
-import band.platform.domain.board.service.PostCreateService;
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
-import band.platform.global.error.GlobalExceptionHandler;
-import band.platform.global.security.jwt.JwtAuthenticationPrincipal;
 
-class PostControllerTest {
-
-	private MockMvc mockMvc;
-	private PostCreateService postCreateService;
-
-	@BeforeEach
-	void setUp() {
-		postCreateService = mock(PostCreateService.class);
-		mockMvc = MockMvcBuilders
-			.standaloneSetup(new PostController(postCreateService))
-			.setCustomArgumentResolvers(new AuthenticationPrincipalArgumentResolver())
-			.setControllerAdvice(new GlobalExceptionHandler())
-			.build();
-	}
-
-	@AfterEach
-	void tearDown() {
-		SecurityContextHolder.clearContext();
-	}
+class PostControllerTest extends PostControllerTestSupport {
 
 	@Test
 	@DisplayName("인증된 사용자가 게시글 생성을 요청하면 201 응답과 생성된 게시글 정보를 반환한다")
@@ -202,25 +170,5 @@ class PostControllerTest {
 			.andExpect(jsonPath("$.status").value(404))
 			.andExpect(jsonPath("$.code").value("E02"))
 			.andExpect(jsonPath("$.message").value("요청한 리소스를 찾을 수 없습니다."));
-	}
-
-	private void setAuthenticatedPrincipal(Long userId, String loginId) {
-		JwtAuthenticationPrincipal principal = new JwtAuthenticationPrincipal(userId, loginId);
-		UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
-			principal,
-			null,
-			List.of(new SimpleGrantedAuthority("ROLE_USER"))
-		);
-		SecurityContextHolder.getContext().setAuthentication(authentication);
-	}
-
-	private String postCreateRequest(String boardType, String title, String content) {
-		return """
-			{
-				"boardType": "%s",
-				"title": "%s",
-				"content": "%s"
-			}
-			""".formatted(boardType, title, content);
 	}
 }

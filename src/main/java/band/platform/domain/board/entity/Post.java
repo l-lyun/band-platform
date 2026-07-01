@@ -49,4 +49,15 @@ public class Post extends BaseEntity {
 		Assert.notNull(boardType, "게시판 타입은 필수입니다.");
 		return new Post(title, content, author, boardType);
 	}
+
+	public void update(String title, String content) {
+		Assert.hasText(title, "게시글 제목은 비어 있을 수 없습니다.");
+		Assert.hasText(content, "게시글 내용은 비어 있을 수 없습니다.");
+		this.title = title;
+		this.content = content;
+	}
+
+	public boolean isWrittenBy(Long userId) {
+		return author.getId().equals(userId);
+	}
 }
