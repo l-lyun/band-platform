@@ -214,6 +214,79 @@ class UserSocialLoginControllerTest {
 	}
 
 	@Test
+	@DisplayName("소셜 가입 성공이면 토큰 응답과 refresh cookie를 반환한다")
+	void socialSignupSuccessContract() throws Exception {
+		when(userSocialLoginService.signup(any()))
+			.thenReturn(new UserSocialLoginResult(
+				SocialLoginResponse.linked(
+					SocialProvider.NAVER,
+					"bandmaster@example.com",
+					"김밴드",
+					"https://example.com/profile.png",
+					TokenResponse.bearer("access-token", 1800)
+				),
+				new UserTokenIssueResult(
+					TokenResponse.bearer("access-token", 1800),
+					"refresh-token",
+					1209600
+				)
+			));
+
+		mockMvc.perform(post("/api/users/social/sign-up")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(socialSignupRequest("NAVER", "authorization-code", "oauth-state", "http://localhost:3000/oauth/naver", true, true, false)))
+			.andExpect(status().isOk())
+			.andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("refreshToken=refresh-token")))
+			.andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("HttpOnly")))
+			.andExpect(jsonPath("$.status").value(200))
+			.andExpect(jsonPath("$.message").value("요청이 성공했습니다."))
+			.andExpect(jsonPath("$.data.signupRequired").value(false))
+			.andExpect(jsonPath("$.data.provider").value("NAVER"))
+			.andExpect(jsonPath("$.data.email").value("bandmaster@example.com"))
+			.andExpect(jsonPath("$.data.name").value("김밴드"))
+			.andExpect(jsonPath("$.data.profileImageUrl").value("https://example.com/profile.png"))
+			.andExpect(jsonPath("$.data.accessToken").value("access-token"))
+			.andExpect(jsonPath("$.data.tokenType").value("Bearer"))
+			.andExpect(jsonPath("$.data.expiresIn").value(1800))
+			.andExpect(jsonPath("$.data.providerSubject").doesNotExist());
+	}
+
+	@Test
+	@DisplayName("소셜 가입 필수 요청 값이 없거나 공백이면 E01 에러 응답을 반환한다")
+	void socialSignupMissingRequiredFields() throws Exception {
+		mockMvc.perform(post("/api/users/social/sign-up")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("""
+					{
+						"code": " ",
+						"state": "",
+						"redirectUri": " ",
+						"privacyPolicyAgreed": true,
+						"marketingPolicyAgreed": true
+					}
+					"""))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("E01"))
+			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
+	}
+
+	@Test
+	@DisplayName("소셜 가입 정책 실패는 서비스의 ErrorCode를 그대로 반환한다")
+	void socialSignupPolicyError() throws Exception {
+		when(userSocialLoginService.signup(any()))
+			.thenThrow(new BusinessException(ErrorCode.AUTH_SOCIAL_ACCOUNT_LINK_REQUIRED));
+
+		mockMvc.perform(post("/api/users/social/sign-up")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(socialSignupRequest("KAKAO", "authorization-code", "oauth-state", "http://localhost:3000/oauth/kakao", true, true, false)))
+			.andExpect(status().isConflict())
+			.andExpect(jsonPath("$.status").value(409))
+			.andExpect(jsonPath("$.code").value("A17"))
+			.andExpect(jsonPath("$.message").value("기존 계정 연결 동의가 필요합니다."));
+	}
+
+	@Test
 	@DisplayName("소셜 로그인 provider는 enum 이름 대문자만 허용한다")
 	void socialSignInRejectsLowercaseProvider() throws Exception {
 		mockMvc.perform(post("/api/users/social/sign-in")
@@ -234,6 +307,29 @@ class UserSocialLoginControllerTest {
 				"redirectUri": "%s"
 			}
 			""".formatted(provider, code, state, redirectUri);
+	}
+
+	private String socialSignupRequest(
+		String provider,
+		String code,
+		String state,
+		String redirectUri,
+		boolean privacyPolicyAgreed,
+		boolean marketingPolicyAgreed,
+		boolean linkExistingAccount
+	) {
+		return """
+			{
+				"provider": "%s",
+				"code": "%s",
+				"state": "%s",
+				"redirectUri": "%s",
+				"phoneNumber": "010-1234-5678",
+				"privacyPolicyAgreed": %s,
+				"marketingPolicyAgreed": %s,
+				"linkExistingAccount": %s
+			}
+			""".formatted(provider, code, state, redirectUri, privacyPolicyAgreed, marketingPolicyAgreed, linkExistingAccount);
 	}
 
 	private String socialLoginStartRequest(String provider) {

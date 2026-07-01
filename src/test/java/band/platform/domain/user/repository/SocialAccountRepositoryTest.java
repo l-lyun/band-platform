@@ -42,6 +42,37 @@ class SocialAccountRepositoryTest {
 	}
 
 	@Test
+	@DisplayName("소셜 회원을 저장하고 해당 회원에 소셜 계정을 연결한다")
+	void saveSocialUserWithSocialAccount() {
+		User user = userRepository.save(User.createSocialUser(
+			"소셜회원",
+			"social@example.com",
+			"01098765432",
+			SocialProvider.KAKAO,
+			true,
+			false
+		));
+		SocialAccount socialAccount = saveSocialAccount(user, SocialProvider.KAKAO, "kakao-social-subject");
+		entityManager.flush();
+		entityManager.clear();
+
+		SocialAccount foundSocialAccount = socialAccountRepository
+			.findByProviderAndProviderSubject(SocialProvider.KAKAO, "kakao-social-subject")
+			.orElseThrow();
+
+		assertThat(foundSocialAccount.getId()).isEqualTo(socialAccount.getId());
+		assertThat(foundSocialAccount.getUser().getId()).isEqualTo(user.getId());
+		assertThat(foundSocialAccount.getUser().getLoginId()).isNull();
+		assertThat(foundSocialAccount.getUser().getPassword()).isNull();
+		assertThat(foundSocialAccount.getUser().getSocialProvider()).isEqualTo(SocialProvider.KAKAO);
+		assertThat(foundSocialAccount.getUser().getEmail()).isEqualTo("social@example.com");
+		assertThat(foundSocialAccount.getUser().getName()).isEqualTo("소셜회원");
+		assertThat(foundSocialAccount.getUser().getPhoneNumber()).isEqualTo("01098765432");
+		assertThat(foundSocialAccount.getUser().getPrivacyPolicyAgreed()).isTrue();
+		assertThat(foundSocialAccount.getUser().getMarketingPolicyAgreed()).isFalse();
+	}
+
+	@Test
 	@DisplayName("제공자와 제공자 고유 식별자의 존재 여부를 반환한다")
 	void existsByProviderAndProviderSubject() {
 		User user = saveUser("bandmaster", "bandmaster@example.com");
@@ -50,6 +81,16 @@ class SocialAccountRepositoryTest {
 		assertThat(socialAccountRepository.existsByProviderAndProviderSubject(SocialProvider.KAKAO, "kakao-subject")).isTrue();
 		assertThat(socialAccountRepository.existsByProviderAndProviderSubject(SocialProvider.NAVER, "kakao-subject")).isFalse();
 		assertThat(socialAccountRepository.existsByProviderAndProviderSubject(SocialProvider.KAKAO, "unknown")).isFalse();
+	}
+
+	@Test
+	@DisplayName("회원과 제공자로 이미 연결된 소셜 계정 여부를 반환한다")
+	void existsByUserAndProvider() {
+		User user = saveUser("bandmaster", "bandmaster@example.com");
+		saveSocialAccount(user, SocialProvider.NAVER, "naver-subject");
+
+		assertThat(socialAccountRepository.existsByUserAndProvider(user, SocialProvider.NAVER)).isTrue();
+		assertThat(socialAccountRepository.existsByUserAndProvider(user, SocialProvider.KAKAO)).isFalse();
 	}
 
 	@Test

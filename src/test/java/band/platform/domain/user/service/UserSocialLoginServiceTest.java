@@ -3,6 +3,7 @@ package band.platform.domain.user.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -21,6 +22,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 import org.springframework.test.util.ReflectionTestUtils;
@@ -29,6 +31,7 @@ import band.platform.domain.user.dto.SocialLoginRequest;
 import band.platform.domain.user.dto.SocialLoginResponse;
 import band.platform.domain.user.dto.SocialLoginStartRequest;
 import band.platform.domain.user.dto.SocialLoginStartResponse;
+import band.platform.domain.user.dto.SocialSignupRequest;
 import band.platform.domain.user.dto.TokenResponse;
 import band.platform.domain.user.dto.UserTokenIssueResult;
 import band.platform.domain.user.entity.Gender;
@@ -37,6 +40,7 @@ import band.platform.domain.user.entity.SocialProvider;
 import band.platform.domain.user.entity.User;
 import band.platform.domain.user.entity.UserStatus;
 import band.platform.domain.user.repository.SocialAccountRepository;
+import band.platform.domain.user.repository.UserRepository;
 import band.platform.domain.user.social.SocialAuthorizationCode;
 import band.platform.domain.user.social.SocialLoginClient;
 import band.platform.domain.user.social.SocialLoginClientResolver;
@@ -75,6 +79,9 @@ class UserSocialLoginServiceTest {
 	private SocialAccountRepository socialAccountRepository;
 
 	@Mock
+	private UserRepository userRepository;
+
+	@Mock
 	private UserTokenService userTokenService;
 
 	private UserSocialLoginService userSocialLoginService;
@@ -88,6 +95,7 @@ class UserSocialLoginServiceTest {
 			socialOAuthStateService,
 			socialOAuthProperties,
 			socialAccountRepository,
+			userRepository,
 			userTokenService
 		);
 	}
@@ -256,8 +264,227 @@ class UserSocialLoginServiceTest {
 		verify(userTokenService, never()).issue(any(), any());
 	}
 
+	@Test
+	@DisplayName("새 이메일 소셜 가입은 사용자와 소셜 계정을 저장한 뒤 이메일 subject로 토큰을 발급한다")
+	void signupNewSocialUser() {
+		UserTokenIssueResult tokenIssueResult = tokenIssueResult();
+		when(socialOAuthStateService.consume(SocialProvider.KAKAO, STATE))
+			.thenReturn(Optional.of(new SocialOAuthState(STATE, NONCE)));
+		when(socialLoginClientResolver.resolve(SocialProvider.KAKAO)).thenReturn(socialLoginClient);
+		when(socialLoginClient.fetchUserInfo(any()))
+			.thenReturn(socialUserInfo(SocialProvider.KAKAO));
+		when(socialAccountRepository.existsByProviderAndProviderSubject(SocialProvider.KAKAO, PROVIDER_SUBJECT))
+			.thenReturn(false);
+		when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.empty());
+		when(userRepository.save(any(User.class))).thenAnswer(invocation -> {
+			User user = invocation.getArgument(0);
+			ReflectionTestUtils.setField(user, "id", USER_ID);
+			return user;
+		});
+		when(socialAccountRepository.save(any(SocialAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		when(userTokenService.issue(USER_ID, EMAIL)).thenReturn(tokenIssueResult);
+		ArgumentCaptor<User> userCaptor = ArgumentCaptor.forClass(User.class);
+		ArgumentCaptor<SocialAccount> socialAccountCaptor = ArgumentCaptor.forClass(SocialAccount.class);
+		InOrder inOrder = inOrder(userRepository, socialAccountRepository, userTokenService);
+
+		var result = userSocialLoginService.signup(signupRequest(SocialProvider.KAKAO, false, true));
+
+		inOrder.verify(userRepository).save(userCaptor.capture());
+		inOrder.verify(socialAccountRepository).save(socialAccountCaptor.capture());
+		inOrder.verify(userTokenService).issue(USER_ID, EMAIL);
+		User savedUser = userCaptor.getValue();
+		assertThat(savedUser.getLoginId()).isNull();
+		assertThat(savedUser.getEmail()).isEqualTo(EMAIL);
+		assertThat(savedUser.getName()).isEqualTo(NAME);
+		assertThat(savedUser.getPhoneNumber()).isEqualTo("01012345678");
+		assertThat(savedUser.getPrivacyPolicyAgreed()).isTrue();
+		assertThat(savedUser.getSocialProvider()).isEqualTo(SocialProvider.KAKAO);
+		assertThat(socialAccountCaptor.getValue().getUser()).isSameAs(savedUser);
+		assertThat(result.tokenIssueResult()).isSameAs(tokenIssueResult);
+		assertThat(result.response().signupRequired()).isFalse();
+		assertThat(result.response().accessToken()).isEqualTo("access-token");
+	}
+
+	@Test
+	@DisplayName("기존 활성 이메일 계정은 명시적 연결 요청일 때만 소셜 계정을 연결하고 토큰을 발급한다")
+	void signupLinksExistingActiveUserWithExplicitConsent() {
+		User user = activeUser();
+		UserTokenIssueResult tokenIssueResult = tokenIssueResult();
+		when(socialOAuthStateService.consume(SocialProvider.NAVER, STATE))
+			.thenReturn(Optional.of(new SocialOAuthState(STATE, NONCE)));
+		when(socialLoginClientResolver.resolve(SocialProvider.NAVER)).thenReturn(socialLoginClient);
+		when(socialLoginClient.fetchUserInfo(any()))
+			.thenReturn(socialUserInfo(SocialProvider.NAVER));
+		when(socialAccountRepository.existsByProviderAndProviderSubject(SocialProvider.NAVER, PROVIDER_SUBJECT))
+			.thenReturn(false);
+		when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(user));
+		when(socialAccountRepository.existsByUserAndProvider(user, SocialProvider.NAVER)).thenReturn(false);
+		when(socialAccountRepository.save(any(SocialAccount.class))).thenAnswer(invocation -> invocation.getArgument(0));
+		when(userTokenService.issue(USER_ID, LOGIN_ID)).thenReturn(tokenIssueResult);
+		ArgumentCaptor<SocialAccount> socialAccountCaptor = ArgumentCaptor.forClass(SocialAccount.class);
+
+		var result = userSocialLoginService.signup(signupRequest(SocialProvider.NAVER, true, true));
+
+		verify(userRepository, never()).save(any());
+		verify(socialAccountRepository).save(socialAccountCaptor.capture());
+		verify(userTokenService).issue(USER_ID, LOGIN_ID);
+		assertThat(socialAccountCaptor.getValue().getUser()).isSameAs(user);
+		assertThat(socialAccountCaptor.getValue().getProvider()).isEqualTo(SocialProvider.NAVER);
+		assertThat(result.tokenIssueResult()).isSameAs(tokenIssueResult);
+		assertThat(result.response().signupRequired()).isFalse();
+	}
+
+	@Test
+	@DisplayName("이미 연결된 제공자 계정이면 A16 예외를 던지고 저장하지 않는다")
+	void signupRejectsDuplicateProviderAccount() {
+		when(socialOAuthStateService.consume(SocialProvider.NAVER, STATE))
+			.thenReturn(Optional.of(new SocialOAuthState(STATE, NONCE)));
+		when(socialLoginClientResolver.resolve(SocialProvider.NAVER)).thenReturn(socialLoginClient);
+		when(socialLoginClient.fetchUserInfo(any()))
+			.thenReturn(socialUserInfo(SocialProvider.NAVER));
+		when(socialAccountRepository.existsByProviderAndProviderSubject(SocialProvider.NAVER, PROVIDER_SUBJECT))
+			.thenReturn(true);
+
+		assertThatThrownBy(() -> userSocialLoginService.signup(signupRequest(SocialProvider.NAVER, false, true)))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_SOCIAL_ACCOUNT_ALREADY_LINKED)
+			);
+
+		verify(userRepository, never()).findByEmail(any());
+		verify(userRepository, never()).save(any());
+		verify(socialAccountRepository, never()).save(any());
+		verify(userTokenService, never()).issue(any(), any());
+	}
+
+	@Test
+	@DisplayName("제공자 사용자 정보에 이메일이 없으면 A12 예외를 던지고 조회와 저장을 중단한다")
+	void signupRejectsMissingProviderEmailBeforeLookup() {
+		when(socialOAuthStateService.consume(SocialProvider.NAVER, STATE))
+			.thenReturn(Optional.of(new SocialOAuthState(STATE, NONCE)));
+		when(socialLoginClientResolver.resolve(SocialProvider.NAVER)).thenReturn(socialLoginClient);
+		when(socialLoginClient.fetchUserInfo(any()))
+			.thenReturn(new SocialUserInfo(SocialProvider.NAVER, PROVIDER_SUBJECT, null, NAME, PROFILE_IMAGE_URL));
+
+		assertThatThrownBy(() -> userSocialLoginService.signup(signupRequest(SocialProvider.NAVER, false, true)))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_SOCIAL_USER_INFO_INVALID)
+			);
+
+		verify(userRepository, never()).findByEmail(any());
+		verify(userRepository, never()).save(any());
+		verify(socialAccountRepository, never()).save(any());
+		verify(userTokenService, never()).issue(any(), any());
+	}
+
+	@Test
+	@DisplayName("기존 이메일 계정이 있는데 명시적 연결 요청이 아니면 A17 예외를 던진다")
+	void signupRejectsSameEmailWithoutExplicitLink() {
+		User user = activeUser();
+		when(socialOAuthStateService.consume(SocialProvider.NAVER, STATE))
+			.thenReturn(Optional.of(new SocialOAuthState(STATE, NONCE)));
+		when(socialLoginClientResolver.resolve(SocialProvider.NAVER)).thenReturn(socialLoginClient);
+		when(socialLoginClient.fetchUserInfo(any()))
+			.thenReturn(socialUserInfo(SocialProvider.NAVER));
+		when(socialAccountRepository.existsByProviderAndProviderSubject(SocialProvider.NAVER, PROVIDER_SUBJECT))
+			.thenReturn(false);
+		when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(user));
+
+		assertThatThrownBy(() -> userSocialLoginService.signup(signupRequest(SocialProvider.NAVER, false, true)))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_SOCIAL_ACCOUNT_LINK_REQUIRED)
+			);
+
+		verify(socialAccountRepository, never()).save(any());
+		verify(userTokenService, never()).issue(any(), any());
+	}
+
+	@Test
+	@DisplayName("개인정보 처리방침에 동의하지 않은 소셜 가입은 E01 예외를 던지고 저장하지 않는다")
+	void signupRejectsPrivacyPolicyNotAgreed() {
+		when(socialOAuthStateService.consume(SocialProvider.KAKAO, STATE))
+			.thenReturn(Optional.of(new SocialOAuthState(STATE, NONCE)));
+		when(socialLoginClientResolver.resolve(SocialProvider.KAKAO)).thenReturn(socialLoginClient);
+		when(socialLoginClient.fetchUserInfo(any()))
+			.thenReturn(socialUserInfo(SocialProvider.KAKAO));
+		when(socialAccountRepository.existsByProviderAndProviderSubject(SocialProvider.KAKAO, PROVIDER_SUBJECT))
+			.thenReturn(false);
+
+		assertThatThrownBy(() -> userSocialLoginService.signup(signupRequest(SocialProvider.KAKAO, false, false)))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_INVALID_INPUT)
+			);
+
+		verify(userRepository, never()).findByEmail(any());
+		verify(userRepository, never()).save(any());
+		verify(socialAccountRepository, never()).save(any());
+		verify(userTokenService, never()).issue(any(), any());
+	}
+
+	@Test
+	@DisplayName("소셜 가입 state가 소비됐으면 제공자 호출 전에 A10 예외로 중단한다")
+	void signupConsumedStateStopsBeforeProviderClient() {
+		when(socialOAuthStateService.consume(SocialProvider.NAVER, STATE)).thenReturn(Optional.empty());
+
+		assertThatThrownBy(() -> userSocialLoginService.signup(signupRequest(SocialProvider.NAVER, false, true)))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_OAUTH_STATE_INVALID)
+			);
+
+		verify(socialLoginClientResolver, never()).resolve(any());
+		verify(socialLoginClient, never()).fetchUserInfo(any());
+		verify(socialAccountRepository, never()).existsByProviderAndProviderSubject(any(), any());
+		verify(userTokenService, never()).issue(any(), any());
+	}
+
+	@Test
+	@DisplayName("기존 이메일 계정이 비활성 상태이면 명시적 연결 요청이어도 A03 예외를 던진다")
+	void signupRejectsInactiveExistingUser() {
+		User user = withdrawnUser();
+		when(socialOAuthStateService.consume(SocialProvider.NAVER, STATE))
+			.thenReturn(Optional.of(new SocialOAuthState(STATE, NONCE)));
+		when(socialLoginClientResolver.resolve(SocialProvider.NAVER)).thenReturn(socialLoginClient);
+		when(socialLoginClient.fetchUserInfo(any()))
+			.thenReturn(socialUserInfo(SocialProvider.NAVER));
+		when(socialAccountRepository.existsByProviderAndProviderSubject(SocialProvider.NAVER, PROVIDER_SUBJECT))
+			.thenReturn(false);
+		when(userRepository.findByEmail(EMAIL)).thenReturn(Optional.of(user));
+
+		assertThatThrownBy(() -> userSocialLoginService.signup(signupRequest(SocialProvider.NAVER, true, true)))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_INVALID_CREDENTIALS)
+			);
+
+		verify(socialAccountRepository, never()).save(any());
+		verify(userTokenService, never()).issue(any(), any());
+	}
+
+	@Test
+	@DisplayName("소셜 가입 요청 DTO는 제공자 subject, 이메일, 이름, 프로필을 받지 않는다")
+	void socialSignupRequestDoesNotCarryTrustedProviderUserInfo() {
+		assertThat(Arrays.stream(SocialSignupRequest.class.getRecordComponents())
+			.map(RecordComponent::getName)
+		).doesNotContain("providerSubject", "email", "name", "profileImageUrl");
+	}
+
 	private SocialLoginRequest request(SocialProvider provider) {
 		return new SocialLoginRequest(provider, CODE, STATE, REDIRECT_URI);
+	}
+
+	private SocialSignupRequest signupRequest(
+		SocialProvider provider,
+		boolean linkExistingAccount,
+		boolean privacyPolicyAgreed
+	) {
+		return new SocialSignupRequest(
+			provider,
+			CODE,
+			STATE,
+			REDIRECT_URI,
+			"01012345678",
+			privacyPolicyAgreed,
+			true,
+			linkExistingAccount
+		);
 	}
 
 	private SocialOAuthProperties socialOAuthProperties() {

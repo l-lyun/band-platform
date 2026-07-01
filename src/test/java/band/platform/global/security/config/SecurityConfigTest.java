@@ -128,6 +128,16 @@ class SecurityConfigTest {
 	}
 
 	@Test
+	@DisplayName("소셜 가입 POST는 익명 요청이 인증 차단이 아니라 컨트롤러 검증까지 도달한다")
+	void socialSignupPublicPostReachesControllerValidation() throws Exception {
+		mockMvc.perform(post("/api/users/social/sign-up")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{}"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.code").value("E01"));
+	}
+
+	@Test
 	@DisplayName("공개 엔드포인트가 아닌 API 익명 요청은 A01로 차단된다")
 	void privateEndpointRequiresAuthentication() throws Exception {
 		mockMvc.perform(get("/api/users/private"))
