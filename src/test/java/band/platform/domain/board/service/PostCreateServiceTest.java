@@ -7,6 +7,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.test.util.ReflectionTestUtils;
 import org.springframework.transaction.annotation.Transactional;
 
 import band.platform.domain.board.dto.PostCreateRequest;
@@ -16,6 +17,7 @@ import band.platform.domain.board.entity.Post;
 import band.platform.domain.board.repository.PostRepository;
 import band.platform.domain.user.entity.Gender;
 import band.platform.domain.user.entity.User;
+import band.platform.domain.user.entity.UserStatus;
 import band.platform.domain.user.repository.UserRepository;
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
@@ -77,6 +79,24 @@ class PostCreateServiceTest {
 			.isInstanceOfSatisfying(BusinessException.class, exception ->
 				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_NOT_FOUND)
 			);
+	}
+
+	@Test
+	@DisplayName("탈퇴한 회원이면 E02 예외를 던지고 게시글을 저장하지 않는다")
+	void withdrawnAuthor() {
+		User author = saveUser("withdrawn", "withdrawn@example.com");
+		ReflectionTestUtils.setField(author, "status", UserStatus.WITHDRAWN);
+		PostCreateRequest request = new PostCreateRequest(
+			BoardType.FREE,
+			"합주 공지",
+			"토요일 오후 2시에 합주합니다."
+		);
+
+		assertThatThrownBy(() -> postCreateService.create(author.getId(), request))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_NOT_FOUND)
+			);
+		assertThat(postRepository.findAll()).isEmpty();
 	}
 
 	private User saveUser(String loginId, String email) {

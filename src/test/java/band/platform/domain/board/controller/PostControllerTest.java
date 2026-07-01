@@ -108,6 +108,20 @@ class PostControllerTest {
 	}
 
 	@Test
+	@DisplayName("내용이 65535자를 초과하면 E01 에러 응답을 반환한다")
+	void contentLongerThan65535() throws Exception {
+		setAuthenticatedPrincipal(1L, "bandmaster");
+
+		mockMvc.perform(post("/api/posts")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(postCreateRequest("FREE", "합주 공지", "a".repeat(65536))))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("E01"))
+			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
+	}
+
+	@Test
 	@DisplayName("게시판 타입이 없으면 E01 에러 응답을 반환한다")
 	void missingBoardType() throws Exception {
 		setAuthenticatedPrincipal(1L, "bandmaster");
