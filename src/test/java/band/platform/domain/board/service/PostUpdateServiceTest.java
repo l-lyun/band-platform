@@ -3,6 +3,8 @@ package band.platform.domain.board.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.time.LocalDateTime;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -65,6 +67,28 @@ class PostUpdateServiceTest {
 		assertThat(updatedPost.getTitle()).isEqualTo("수정된 합주 공지");
 		assertThat(updatedPost.getContent()).isEqualTo("토요일 오후 3시로 변경합니다.");
 		assertThat(updatedPost.getAuthor().getId()).isEqualTo(author.getId());
+	}
+
+	@Test
+	@DisplayName("수정 응답의 수정일시는 flush 후 저장된 수정일시와 일치한다")
+	void updateResponseUpdatedAtMatchesFlushedPost() {
+		User author = saveUser("bandmaster", "bandmaster@example.com");
+		Post post = postRepository.saveAndFlush(Post.create("합주 공지", "토요일 오후 2시에 합주합니다.", author, BoardType.FREE));
+		LocalDateTime originalUpdatedAt = post.getUpdatedAt();
+		entityManager.clear();
+		PostUpdateRequest request = new PostUpdateRequest(
+			"수정된 합주 공지",
+			"토요일 오후 3시로 변경합니다."
+		);
+
+		PostUpdateResponse response = postUpdateService.update(author.getId(), post.getId(), request);
+
+		entityManager.clear();
+
+		Post updatedPost = postRepository.findById(post.getId()).orElseThrow();
+		assertThat(response.updatedAt()).isNotNull();
+		assertThat(response.updatedAt()).isEqualTo(updatedPost.getUpdatedAt());
+		assertThat(response.updatedAt()).isNotEqualTo(originalUpdatedAt);
 	}
 
 	@Test

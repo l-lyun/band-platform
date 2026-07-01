@@ -33,6 +33,6 @@ public class PostUpdateService {
 
 		post.update(request.title(), request.content());
 
-		return PostUpdateResponse.from(post);
+		return PostUpdateResponse.from(postRepository.saveAndFlush(post));
 	}
 }

@@ -71,6 +71,20 @@ class PostQueryControllerTest extends PostControllerTestSupport {
 	}
 
 	@Test
+	@DisplayName("게시글 ID가 숫자가 아니면 단건 조회에서 E01 에러 응답을 반환한다")
+	void getPostByNonNumericPostId() throws Exception {
+		setAuthenticatedPrincipal(1L, "bandmaster");
+
+		mockMvc.perform(get("/api/posts/{postId}", "abc"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("E01"))
+			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
+
+		verifyNoInteractions(postCreateService, postQueryService, postUpdateService, postDeleteService);
+	}
+
+	@Test
 	@DisplayName("게시판 타입 목록 조회를 요청하면 200 응답과 페이징된 게시글 요약을 최신순으로 반환한다")
 	void getPostsByBoardType() throws Exception {
 		setAuthenticatedPrincipal(1L, "bandmaster");
@@ -127,7 +141,7 @@ class PostQueryControllerTest extends PostControllerTestSupport {
 			.andExpect(jsonPath("$.code").value("E01"))
 			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
 
-		verifyNoInteractions(postQueryService);
+		verifyNoInteractions(postCreateService, postQueryService, postUpdateService, postDeleteService);
 	}
 
 	@Test
@@ -179,6 +193,23 @@ class PostQueryControllerTest extends PostControllerTestSupport {
 			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
 
 		verifyNoInteractions(postQueryService);
+	}
+
+	@Test
+	@DisplayName("목록 조회 size가 100을 초과하면 E01 에러 응답을 반환한다")
+	void getPostsBySizeGreaterThan100() throws Exception {
+		setAuthenticatedPrincipal(1L, "bandmaster");
+
+		mockMvc.perform(get("/api/posts")
+				.param("boardType", "FREE")
+				.param("page", "0")
+				.param("size", "101"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("E01"))
+			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
+
+		verifyNoInteractions(postCreateService, postQueryService, postUpdateService, postDeleteService);
 	}
 
 	@Test

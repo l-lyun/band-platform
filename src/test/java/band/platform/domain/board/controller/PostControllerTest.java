@@ -76,13 +76,13 @@ class PostControllerTest extends PostControllerTestSupport {
 	}
 
 	@Test
-	@DisplayName("내용이 65535자를 초과하면 E01 에러 응답을 반환한다")
-	void contentLongerThan65535() throws Exception {
+	@DisplayName("내용이 16000자를 초과하면 E01 에러 응답을 반환한다")
+	void contentLongerThan16000() throws Exception {
 		setAuthenticatedPrincipal(1L, "bandmaster");
 
 		mockMvc.perform(post("/api/posts")
 				.contentType(MediaType.APPLICATION_JSON)
-				.content(postCreateRequest("FREE", "합주 공지", "a".repeat(65536))))
+				.content(postCreateRequest("FREE", "합주 공지", "a".repeat(16001))))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.status").value(400))
 			.andExpect(jsonPath("$.code").value("E01"))

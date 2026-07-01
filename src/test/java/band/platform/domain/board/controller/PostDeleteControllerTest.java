@@ -1,6 +1,7 @@
 package band.platform.domain.board.controller;
 
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -50,6 +51,20 @@ class PostDeleteControllerTest extends PostControllerTestSupport {
 			.andExpect(jsonPath("$.status").value(404))
 			.andExpect(jsonPath("$.code").value("E02"))
 			.andExpect(jsonPath("$.message").value("요청한 리소스를 찾을 수 없습니다."));
+	}
+
+	@Test
+	@DisplayName("게시글 ID가 숫자가 아니면 삭제 요청에서 E01 에러 응답을 반환한다")
+	void deletePostByNonNumericPostId() throws Exception {
+		setAuthenticatedPrincipal(1L, "bandmaster");
+
+		mockMvc.perform(delete("/api/posts/{postId}", "abc"))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("E01"))
+			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
+
+		verifyNoInteractions(postCreateService, postQueryService, postUpdateService, postDeleteService);
 	}
 
 	@Test

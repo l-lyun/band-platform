@@ -14,7 +14,7 @@ public record PostCreateRequest(
 	String title,
 
 	@NotBlank
-	@Size(max = 65535)
+	@Size(max = 16000)
 	String content
 ) {
 }

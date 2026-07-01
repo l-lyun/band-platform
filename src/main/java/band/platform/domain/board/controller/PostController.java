@@ -36,14 +36,16 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public class PostController {
 
+	private static final int MAX_PAGE_SIZE = 100;
+
 	private final PostCreateService postCreateService;
 	private final PostQueryService postQueryService;
 	private final PostUpdateService postUpdateService;
 	private final PostDeleteService postDeleteService;
 
 	@GetMapping("/{postId}")
-	public ResponseEntity<ApiResult<PostDetailResponse>> getPost(@PathVariable Long postId) {
-		return ApiResult.ok(postQueryService.getPost(postId)).toResponseEntity();
+	public ResponseEntity<ApiResult<PostDetailResponse>> getPost(@PathVariable String postId) {
+		return ApiResult.ok(postQueryService.getPost(parsePostId(postId))).toResponseEntity();
 	}
 
 	@GetMapping
@@ -70,18 +72,18 @@ public class PostController {
 	@PatchMapping("/{postId}")
 	public ResponseEntity<ApiResult<PostUpdateResponse>> update(
 		@AuthenticationPrincipal JwtAuthenticationPrincipal principal,
-		@PathVariable Long postId,
+		@PathVariable String postId,
 		@Valid @RequestBody PostUpdateRequest request
 	) {
-		return ApiResult.ok(postUpdateService.update(principal.userId(), postId, request)).toResponseEntity();
+		return ApiResult.ok(postUpdateService.update(principal.userId(), parsePostId(postId), request)).toResponseEntity();
 	}
 
 	@DeleteMapping("/{postId}")
 	public ResponseEntity<ApiResult<Void>> delete(
 		@AuthenticationPrincipal JwtAuthenticationPrincipal principal,
-		@PathVariable Long postId
+		@PathVariable String postId
 	) {
-		postDeleteService.delete(principal.userId(), postId);
+		postDeleteService.delete(principal.userId(), parsePostId(postId));
 		return ApiResult.ok().toResponseEntity();
 	}
 
@@ -94,7 +96,7 @@ public class PostController {
 	}
 
 	private void validatePageRequest(int page, int size) {
-		if (page < 0 || size < 1) {
+		if (page < 0 || size < 1 || size > MAX_PAGE_SIZE) {
 			throw new BusinessException(ErrorCode.COMMON_INVALID_INPUT);
 		}
 	}
@@ -102,6 +104,14 @@ public class PostController {
 	private int parseQueryNumber(String value) {
 		try {
 			return Integer.parseInt(value);
+		} catch (NumberFormatException exception) {
+			throw new BusinessException(ErrorCode.COMMON_INVALID_INPUT);
+		}
+	}
+
+	private Long parsePostId(String postId) {
+		try {
+			return Long.parseLong(postId);
 		} catch (NumberFormatException exception) {
 			throw new BusinessException(ErrorCode.COMMON_INVALID_INPUT);
 		}

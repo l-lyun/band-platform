@@ -3,6 +3,7 @@ package band.platform.domain.board.controller;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -115,6 +116,22 @@ class PostUpdateControllerTest extends PostControllerTestSupport {
 	}
 
 	@Test
+	@DisplayName("게시글 ID가 숫자가 아니면 수정 요청에서 E01 에러 응답을 반환한다")
+	void updatePostByNonNumericPostId() throws Exception {
+		setAuthenticatedPrincipal(1L, "bandmaster");
+
+		mockMvc.perform(patch("/api/posts/{postId}", "abc")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(postUpdateRequest("수정된 합주 공지", "토요일 오후 3시로 변경합니다.")))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("E01"))
+			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
+
+		verifyNoInteractions(postCreateService, postQueryService, postUpdateService, postDeleteService);
+	}
+
+	@Test
 	@DisplayName("수정 제목이 비어 있으면 E01 에러 응답을 반환한다")
 	void blankUpdateTitle() throws Exception {
 		setAuthenticatedPrincipal(1L, "bandmaster");
@@ -157,13 +174,13 @@ class PostUpdateControllerTest extends PostControllerTestSupport {
 	}
 
 	@Test
-	@DisplayName("수정 내용이 65535자를 초과하면 E01 에러 응답을 반환한다")
-	void updateContentLongerThan65535() throws Exception {
+	@DisplayName("수정 내용이 16000자를 초과하면 E01 에러 응답을 반환한다")
+	void updateContentLongerThan16000() throws Exception {
 		setAuthenticatedPrincipal(1L, "bandmaster");
 
 		mockMvc.perform(patch("/api/posts/{postId}", 10L)
 				.contentType(MediaType.APPLICATION_JSON)
-				.content(postUpdateRequest("수정된 합주 공지", "a".repeat(65536))))
+				.content(postUpdateRequest("수정된 합주 공지", "a".repeat(16001))))
 			.andExpect(status().isBadRequest())
 			.andExpect(jsonPath("$.status").value(400))
 			.andExpect(jsonPath("$.code").value("E01"))
