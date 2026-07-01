@@ -6,6 +6,7 @@ public final class PublicEndpoints {
 		"/api/users/sign-*",
 		"/api/users/social/authorization",
 		"/api/users/social/sign-in",
+		"/api/users/social/sign-up",
 		"/api/users/find-login-id",
 		"/api/users/password-reset/**"
 	};

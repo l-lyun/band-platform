@@ -23,6 +23,7 @@ import band.platform.domain.user.dto.FindLoginIdResponse;
 import band.platform.domain.user.dto.UserLoginRequest;
 import band.platform.domain.user.dto.UserLoginResponse;
 import band.platform.domain.user.entity.Gender;
+import band.platform.domain.user.entity.SocialProvider;
 import band.platform.domain.user.entity.User;
 import band.platform.domain.user.entity.UserStatus;
 import band.platform.domain.user.repository.UserRepository;
@@ -145,6 +146,26 @@ class UserLoginServiceTest {
 
 		assertThatThrownBy(() -> userLoginService.findLoginId(
 			new FindLoginIdRequest("bandmaster@example.com")
+		))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_INVALID_CREDENTIALS)
+			);
+	}
+
+	@Test
+	@DisplayName("활성 소셜 전용 회원 이메일이면 로그인 아이디 없이 반환하지 않고 A03 예외를 던진다")
+	void findLoginIdSocialOnlyUserEmail() {
+		userRepository.save(User.createSocialUser(
+			"김소셜",
+			"social@example.com",
+			"01012345678",
+			SocialProvider.KAKAO,
+			true,
+			true
+		));
+
+		assertThatThrownBy(() -> userLoginService.findLoginId(
+			new FindLoginIdRequest("social@example.com")
 		))
 			.isInstanceOfSatisfying(BusinessException.class, exception ->
 				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.AUTH_INVALID_CREDENTIALS)

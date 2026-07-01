@@ -8,6 +8,7 @@ public record SocialLoginResponse(
 	String email,
 	String name,
 	String profileImageUrl,
+	String pendingSignupToken,
 	String accessToken,
 	String tokenType,
 	Long expiresIn
@@ -26,6 +27,7 @@ public record SocialLoginResponse(
 			email,
 			name,
 			profileImageUrl,
+			null,
 			token.accessToken(),
 			token.tokenType(),
 			token.expiresIn()
@@ -36,7 +38,8 @@ public record SocialLoginResponse(
 		SocialProvider provider,
 		String email,
 		String name,
-		String profileImageUrl
+		String profileImageUrl,
+		String pendingSignupToken
 	) {
 		return new SocialLoginResponse(
 			true,
@@ -44,6 +47,7 @@ public record SocialLoginResponse(
 			email,
 			name,
 			profileImageUrl,
+			pendingSignupToken,
 			null,
 			null,
 			null

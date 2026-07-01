@@ -49,7 +49,9 @@ public class UserLoginService {
 	@Transactional(readOnly = true)
 	public FindLoginIdResponse findLoginId(FindLoginIdRequest request) {
 		return userRepository.findByEmailAndStatus(request.email(), UserStatus.ACTIVE)
-			.map(user -> new FindLoginIdResponse(user.getLoginId()))
+			.map(User::getLoginId)
+			.filter(loginId -> !loginId.isBlank())
+			.map(FindLoginIdResponse::new)
 			.orElseThrow(() -> new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS));
 	}
 

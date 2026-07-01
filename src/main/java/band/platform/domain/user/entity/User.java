@@ -24,7 +24,7 @@ public class User extends BaseEntity {
 	@Column(unique = true)
 	private String loginId;
 
-	@Column(nullable = false)
+	@Column
 	private String password;
 
 	@Column(nullable = false, unique = true)
@@ -39,7 +39,7 @@ public class User extends BaseEntity {
 	@Column(nullable = false)
 	private String phoneNumber;
 
-	@Column(nullable = false)
+	@Column
 	@Enumerated(EnumType.STRING)
 	private Gender gender;
 
@@ -113,6 +113,33 @@ public class User extends BaseEntity {
 			gender,
 			profileImg,
 			SocialProvider.LOCAL,
+			privacyPolicyAgreed,
+			marketingPolicyAgreed
+		);
+	}
+
+	public static User createSocialUser(
+		String name,
+		String email,
+		String phoneNumber,
+		SocialProvider socialProvider,
+		Boolean privacyPolicyAgreed,
+		Boolean marketingPolicyAgreed
+	) {
+		if (socialProvider == SocialProvider.LOCAL) {
+			throw new IllegalArgumentException("LOCAL provider cannot be used for social user");
+		}
+		return new User(
+			name,
+			null,
+			null,
+			email,
+			null,
+			false,
+			phoneNumber,
+			null,
+			null,
+			socialProvider,
 			privacyPolicyAgreed,
 			marketingPolicyAgreed
 		);

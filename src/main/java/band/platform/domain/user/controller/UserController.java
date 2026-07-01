@@ -17,6 +17,7 @@ import band.platform.domain.user.dto.SocialLoginRequest;
 import band.platform.domain.user.dto.SocialLoginResponse;
 import band.platform.domain.user.dto.SocialLoginStartRequest;
 import band.platform.domain.user.dto.SocialLoginStartResponse;
+import band.platform.domain.user.dto.SocialSignupRequest;
 import band.platform.domain.user.dto.UserLoginRequest;
 import band.platform.domain.user.dto.UserLoginResponse;
 import band.platform.domain.user.dto.UserSignupRequest;
@@ -79,6 +80,22 @@ public class UserController {
 		if (tokenIssueResult == null) {
 			return ApiResult.ok(socialLoginResult.response()).toResponseEntity();
 		}
+
+		return ResponseEntity.ok()
+			.header(
+				HttpHeaders.SET_COOKIE,
+				refreshTokenCookieFactory.create(tokenIssueResult.refreshToken(), tokenIssueResult.refreshTokenMaxAgeSeconds())
+					.toString()
+			)
+			.body(ApiResult.ok(socialLoginResult.response()));
+	}
+
+	@PostMapping("/social/sign-up")
+	public ResponseEntity<ApiResult<SocialLoginResponse>> socialSignup(
+		@Valid @RequestBody SocialSignupRequest request
+	) {
+		UserSocialLoginResult socialLoginResult = userSocialLoginService.signup(request);
+		UserTokenIssueResult tokenIssueResult = socialLoginResult.tokenIssueResult();
 
 		return ResponseEntity.ok()
 			.header(

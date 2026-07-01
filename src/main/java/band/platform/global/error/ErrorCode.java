@@ -24,6 +24,9 @@ public enum ErrorCode {
 	AUTH_SOCIAL_CONFIGURATION_INVALID("A13", HttpStatus.INTERNAL_SERVER_ERROR, "소셜 로그인 설정이 올바르지 않습니다."),
 	AUTH_SOCIAL_PROVIDER_RESPONSE_INVALID("A14", HttpStatus.BAD_GATEWAY, "소셜 로그인 제공자 응답이 올바르지 않습니다."),
 	AUTH_SOCIAL_PROVIDER_UNAVAILABLE("A15", HttpStatus.BAD_GATEWAY, "소셜 로그인 제공자와 통신할 수 없습니다."),
+	AUTH_SOCIAL_ACCOUNT_ALREADY_LINKED("A16", HttpStatus.CONFLICT, "이미 연결된 소셜 계정입니다."),
+	AUTH_SOCIAL_ACCOUNT_LINK_REQUIRED("A17", HttpStatus.CONFLICT, "기존 계정 연결 동의가 필요합니다."),
+	AUTH_SOCIAL_PENDING_SIGNUP_INVALID("A18", HttpStatus.BAD_REQUEST, "소셜 가입 대기 토큰이 올바르지 않습니다."),
 
 	USER_LOGIN_ID_DUPLICATED("U01", HttpStatus.CONFLICT, "이미 사용 중인 아이디입니다."),
 	USER_EMAIL_DUPLICATED("U02", HttpStatus.CONFLICT, "이미 사용 중인 이메일입니다.");
