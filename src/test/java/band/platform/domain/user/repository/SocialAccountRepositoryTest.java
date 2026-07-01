@@ -108,6 +108,19 @@ class SocialAccountRepositoryTest {
 	}
 
 	@Test
+	@DisplayName("한 회원은 같은 제공자 소셜 계정을 중복 연결할 수 없다")
+	void duplicatedUserProvider() {
+		User user = saveUser("bandmaster", "bandmaster@example.com");
+		saveSocialAccount(user, SocialProvider.NAVER, "naver-subject");
+
+		assertThatThrownBy(() -> {
+			socialAccountRepository.saveAndFlush(
+				SocialAccount.connect(user, SocialProvider.NAVER, "another-naver-subject")
+			);
+		}).isInstanceOf(DataIntegrityViolationException.class);
+	}
+
+	@Test
 	@DisplayName("제공자가 다르면 같은 고유 식별자도 별도 계정으로 저장된다")
 	void sameSubjectWithDifferentProvider() {
 		User firstUser = saveUser("bandmaster", "bandmaster@example.com");

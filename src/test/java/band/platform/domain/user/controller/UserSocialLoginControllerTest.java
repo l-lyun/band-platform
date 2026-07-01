@@ -142,7 +142,8 @@ class UserSocialLoginControllerTest {
 					SocialProvider.KAKAO,
 					"bandmaster@example.com",
 					"김밴드",
-					"https://example.com/profile.png"
+					"https://example.com/profile.png",
+					"pending-signup-token"
 				),
 				null
 			));
@@ -159,6 +160,7 @@ class UserSocialLoginControllerTest {
 			.andExpect(jsonPath("$.data.email").value("bandmaster@example.com"))
 			.andExpect(jsonPath("$.data.name").value("김밴드"))
 			.andExpect(jsonPath("$.data.profileImageUrl").value("https://example.com/profile.png"))
+			.andExpect(jsonPath("$.data.pendingSignupToken").value("pending-signup-token"))
 			.andExpect(jsonPath("$.data.accessToken").value(org.hamcrest.Matchers.nullValue()))
 			.andExpect(jsonPath("$.data.tokenType").value(org.hamcrest.Matchers.nullValue()))
 			.andExpect(jsonPath("$.data.expiresIn").value(org.hamcrest.Matchers.nullValue()))
@@ -234,7 +236,7 @@ class UserSocialLoginControllerTest {
 
 		mockMvc.perform(post("/api/users/social/sign-up")
 				.contentType(MediaType.APPLICATION_JSON)
-				.content(socialSignupRequest("NAVER", "authorization-code", "oauth-state", "http://localhost:3000/oauth/naver", true, true, false)))
+				.content(socialSignupRequest("pending-signup-token", "김밴드", true, true, false)))
 			.andExpect(status().isOk())
 			.andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("refreshToken=refresh-token")))
 			.andExpect(header().string(HttpHeaders.SET_COOKIE, org.hamcrest.Matchers.containsString("HttpOnly")))
@@ -261,6 +263,7 @@ class UserSocialLoginControllerTest {
 						"code": " ",
 						"state": "",
 						"redirectUri": " ",
+						"pendingSignupToken": "",
 						"privacyPolicyAgreed": true,
 						"marketingPolicyAgreed": true
 					}
@@ -279,7 +282,7 @@ class UserSocialLoginControllerTest {
 
 		mockMvc.perform(post("/api/users/social/sign-up")
 				.contentType(MediaType.APPLICATION_JSON)
-				.content(socialSignupRequest("KAKAO", "authorization-code", "oauth-state", "http://localhost:3000/oauth/kakao", true, true, false)))
+				.content(socialSignupRequest("pending-signup-token", "김밴드", true, true, false)))
 			.andExpect(status().isConflict())
 			.andExpect(jsonPath("$.status").value(409))
 			.andExpect(jsonPath("$.code").value("A17"))
@@ -310,26 +313,22 @@ class UserSocialLoginControllerTest {
 	}
 
 	private String socialSignupRequest(
-		String provider,
-		String code,
-		String state,
-		String redirectUri,
+		String pendingSignupToken,
+		String name,
 		boolean privacyPolicyAgreed,
 		boolean marketingPolicyAgreed,
 		boolean linkExistingAccount
 	) {
 		return """
 			{
-				"provider": "%s",
-				"code": "%s",
-				"state": "%s",
-				"redirectUri": "%s",
+				"pendingSignupToken": "%s",
+				"name": "%s",
 				"phoneNumber": "010-1234-5678",
 				"privacyPolicyAgreed": %s,
 				"marketingPolicyAgreed": %s,
 				"linkExistingAccount": %s
 			}
-			""".formatted(provider, code, state, redirectUri, privacyPolicyAgreed, marketingPolicyAgreed, linkExistingAccount);
+			""".formatted(pendingSignupToken, name, privacyPolicyAgreed, marketingPolicyAgreed, linkExistingAccount);
 	}
 
 	private String socialLoginStartRequest(String provider) {

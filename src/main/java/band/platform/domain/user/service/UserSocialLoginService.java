@@ -2,6 +2,7 @@ package band.platform.domain.user.service;
 
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.util.StringUtils;
 import org.springframework.web.util.UriComponentsBuilder;
 
 import band.platform.domain.user.dto.SocialLoginRequest;
@@ -22,6 +23,7 @@ import band.platform.domain.user.social.SocialLoginClientResolver;
 import band.platform.domain.user.social.SocialOAuthProperties;
 import band.platform.domain.user.social.SocialOAuthState;
 import band.platform.domain.user.social.SocialOAuthStateService;
+import band.platform.domain.user.social.SocialPendingSignupService;
 import band.platform.domain.user.social.SocialUserInfo;
 import band.platform.global.error.BusinessException;
 import band.platform.global.error.ErrorCode;
@@ -33,6 +35,7 @@ public class UserSocialLoginService {
 
 	private final SocialLoginClientResolver socialLoginClientResolver;
 	private final SocialOAuthStateService socialOAuthStateService;
+	private final SocialPendingSignupService socialPendingSignupService;
 	private final SocialOAuthProperties socialOAuthProperties;
 	private final SocialAccountRepository socialAccountRepository;
 	private final UserRepository userRepository;
@@ -65,12 +68,8 @@ public class UserSocialLoginService {
 
 	@Transactional
 	public UserSocialLoginResult signup(SocialSignupRequest request) {
-		SocialUserInfo socialUserInfo = fetchSocialUserInfo(
-			request.provider(),
-			request.code(),
-			request.state(),
-			request.redirectUri()
-		);
+		SocialUserInfo socialUserInfo = socialPendingSignupService.consume(request.pendingSignupToken())
+			.orElseThrow(() -> new BusinessException(ErrorCode.AUTH_SOCIAL_PENDING_SIGNUP_INVALID));
 
 		validateProviderEmail(socialUserInfo);
 		validateProviderAccountNotLinked(socialUserInfo);
@@ -174,13 +173,23 @@ public class UserSocialLoginService {
 
 	private User createSocialUser(SocialSignupRequest request, SocialUserInfo socialUserInfo) {
 		return userRepository.save(User.createSocialUser(
-			socialUserInfo.name(),
+			socialSignupName(request, socialUserInfo),
 			socialUserInfo.email(),
 			request.phoneNumber(),
 			socialUserInfo.provider(),
 			request.privacyPolicyAgreed(),
 			request.marketingPolicyAgreed()
 		));
+	}
+
+	private String socialSignupName(SocialSignupRequest request, SocialUserInfo socialUserInfo) {
+		if (StringUtils.hasText(socialUserInfo.name())) {
+			return socialUserInfo.name();
+		}
+		if (StringUtils.hasText(request.name())) {
+			return request.name();
+		}
+		throw new BusinessException(ErrorCode.AUTH_SOCIAL_USER_INFO_INVALID);
 	}
 
 	private String tokenSubject(User user) {
@@ -191,12 +200,14 @@ public class UserSocialLoginService {
 	}
 
 	private UserSocialLoginResult signupRequired(SocialUserInfo socialUserInfo) {
+		String pendingSignupToken = socialPendingSignupService.issue(socialUserInfo);
 		return new UserSocialLoginResult(
 			SocialLoginResponse.signupRequired(
 				socialUserInfo.provider(),
 				socialUserInfo.email(),
 				socialUserInfo.name(),
-				socialUserInfo.profileImageUrl()
+				socialUserInfo.profileImageUrl(),
+				pendingSignupToken
 			),
 			null
 		);
