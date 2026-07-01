@@ -1,6 +1,7 @@
 package band.platform.domain.board.entity;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -22,6 +23,40 @@ class PostTest {
 		assertThat(post.getContent()).isEqualTo("이번 주말 합주할 기타 멤버를 찾습니다.");
 		assertThat(post.getAuthor()).isEqualTo(author);
 		assertThat(post.getBoardType()).isEqualTo(BoardType.RECRUIT);
+	}
+
+	@Test
+	@DisplayName("제목이 비어 있으면 게시글을 생성하지 않는다")
+	void rejectBlankTitle() {
+		User author = createLocalUserFixture();
+
+		assertThatThrownBy(() -> Post.create(" ", "내용", author, BoardType.RECRUIT))
+			.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	@DisplayName("내용이 비어 있으면 게시글을 생성하지 않는다")
+	void rejectBlankContent() {
+		User author = createLocalUserFixture();
+
+		assertThatThrownBy(() -> Post.create("제목", " ", author, BoardType.RECRUIT))
+			.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	@DisplayName("작성자가 없으면 게시글을 생성하지 않는다")
+	void rejectNullAuthor() {
+		assertThatThrownBy(() -> Post.create("제목", "내용", null, BoardType.RECRUIT))
+			.isInstanceOf(IllegalArgumentException.class);
+	}
+
+	@Test
+	@DisplayName("게시판 타입이 없으면 게시글을 생성하지 않는다")
+	void rejectNullBoardType() {
+		User author = createLocalUserFixture();
+
+		assertThatThrownBy(() -> Post.create("제목", "내용", author, null))
+			.isInstanceOf(IllegalArgumentException.class);
 	}
 
 	private User createLocalUserFixture() {

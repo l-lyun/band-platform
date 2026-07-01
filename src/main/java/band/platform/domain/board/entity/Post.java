@@ -13,6 +13,7 @@ import jakarta.persistence.Table;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import org.springframework.util.Assert;
 
 @Entity
 @Table(name = "posts")
@@ -42,6 +43,10 @@ public class Post extends BaseEntity {
 	}
 
 	public static Post create(String title, String content, User author, BoardType boardType) {
+		Assert.hasText(title, "게시글 제목은 비어 있을 수 없습니다.");
+		Assert.hasText(content, "게시글 내용은 비어 있을 수 없습니다.");
+		Assert.notNull(author, "게시글 작성자는 필수입니다.");
+		Assert.notNull(boardType, "게시판 타입은 필수입니다.");
 		return new Post(title, content, author, boardType);
 	}
 }
