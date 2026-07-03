@@ -31,7 +31,7 @@ public class UserInterestService {
 
 	@Transactional
 	public UserInterestResponse updateMyInterests(Long userId, UserInterestUpdateRequest request) {
-		User user = findActiveUser(userId);
+		User user = findActiveUserForUpdate(userId);
 		UserInterest userInterest = userInterestRepository.findByUserId(userId)
 			.orElseGet(() -> UserInterest.create(user, null, null, null, null));
 
@@ -47,6 +47,11 @@ public class UserInterestService {
 
 	private User findActiveUser(Long userId) {
 		return userRepository.findByIdAndStatus(userId, UserStatus.ACTIVE)
+			.orElseThrow(() -> new BusinessException(ErrorCode.COMMON_NOT_FOUND));
+	}
+
+	private User findActiveUserForUpdate(Long userId) {
+		return userRepository.findByIdAndStatusForUpdate(userId, UserStatus.ACTIVE)
 			.orElseThrow(() -> new BusinessException(ErrorCode.COMMON_NOT_FOUND));
 	}
 }

@@ -73,6 +73,28 @@ class UserRepositoryTest {
 	}
 
 	@Test
+	@DisplayName("ACTIVE 회원을 쓰기 잠금으로 조회한다")
+	void findByIdAndStatusForUpdate() {
+		User user = saveUser("bandmaster", "bandmaster@example.com");
+
+		assertThat(userRepository.findByIdAndStatusForUpdate(user.getId(), UserStatus.ACTIVE))
+			.hasValueSatisfying(foundUser -> assertThat(foundUser.getId()).isEqualTo(user.getId()));
+	}
+
+	@Test
+	@DisplayName("ACTIVE 상태가 아니면 쓰기 잠금 조회에서 빈 Optional을 반환한다")
+	void findByIdAndStatusForUpdateInactiveUser() {
+		User user = saveUser("bandmaster", "bandmaster@example.com");
+		entityManager.flush();
+		entityManager.createNativeQuery("UPDATE users SET status = 'WITHDRAWN' WHERE id = ?")
+			.setParameter(1, user.getId())
+			.executeUpdate();
+		entityManager.clear();
+
+		assertThat(userRepository.findByIdAndStatusForUpdate(user.getId(), UserStatus.ACTIVE)).isEmpty();
+	}
+
+	@Test
 	@DisplayName("status 컬럼이 없는 기존 회원은 ACTIVE 상태로 조회된다")
 	void existingUserRowsUseDefaultStatus() {
 		entityManager.createNativeQuery("""
