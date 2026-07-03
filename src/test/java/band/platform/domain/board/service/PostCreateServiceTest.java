@@ -3,6 +3,8 @@ package band.platform.domain.board.service;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.List;
+
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -12,8 +14,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import band.platform.domain.board.dto.PostCreateRequest;
 import band.platform.domain.board.dto.PostCreateResponse;
+import band.platform.domain.board.dto.PostMediaRequest;
 import band.platform.domain.board.entity.BoardType;
 import band.platform.domain.board.entity.Post;
+import band.platform.domain.board.entity.PostMedia;
+import band.platform.domain.board.entity.PostMediaType;
+import band.platform.domain.board.repository.PostMediaRepository;
 import band.platform.domain.board.repository.PostRepository;
 import band.platform.domain.user.entity.Gender;
 import band.platform.domain.user.entity.User;
@@ -32,6 +38,9 @@ class PostCreateServiceTest {
 
 	@Autowired
 	private PostRepository postRepository;
+
+	@Autowired
+	private PostMediaRepository postMediaRepository;
 
 	@Autowired
 	private UserRepository userRepository;
@@ -60,10 +69,63 @@ class PostCreateServiceTest {
 		assertThat(response.title()).isEqualTo("합주 공지");
 		assertThat(response.content()).isEqualTo("토요일 오후 2시에 합주합니다.");
 		assertThat(response.authorId()).isEqualTo(author.getId());
+		assertThat(response.mediaItems()).isEmpty();
 		assertThat(post.getBoardType()).isEqualTo(BoardType.FREE);
 		assertThat(post.getTitle()).isEqualTo("합주 공지");
 		assertThat(post.getContent()).isEqualTo("토요일 오후 2시에 합주합니다.");
 		assertThat(post.getAuthor().getId()).isEqualTo(author.getId());
+	}
+
+	@Test
+	@DisplayName("미디어 목록이 있으면 게시글 저장 후 정렬 순서대로 미디어 응답을 반환한다")
+	void createPostWithMediaItems() {
+		User author = saveUser("mediaauthor", "mediaauthor@example.com");
+		PostCreateRequest request = new PostCreateRequest(
+			BoardType.FREE,
+			"합주 공지",
+			"토요일 오후 2시에 합주합니다.",
+			List.of(
+				mediaRequest(PostMediaType.VIDEO, "https://cdn.example.com/video.mp4", 1),
+				mediaRequest(PostMediaType.IMAGE, "https://cdn.example.com/image.jpg", 0)
+			)
+		);
+
+		PostCreateResponse response = postCreateService.create(author.getId(), request);
+
+		entityManager.flush();
+		entityManager.clear();
+
+		List<PostMedia> mediaItems =
+			postMediaRepository.findAllByPostIdAndDeletedFalseOrderBySortOrderAsc(response.id());
+		assertThat(response.mediaItems())
+			.extracting(media -> media.sortOrder())
+			.containsExactly(0, 1);
+		assertThat(response.mediaItems())
+			.extracting(media -> media.mediaType())
+			.containsExactly(PostMediaType.IMAGE, PostMediaType.VIDEO);
+		assertThat(mediaItems)
+			.extracting(PostMedia::getSortOrder)
+			.containsExactly(0, 1);
+	}
+
+	@Test
+	@DisplayName("미디어 정렬 순서가 중복되면 E01 예외를 던진다")
+	void duplicateMediaSortOrder() {
+		User author = saveUser("duplicateauthor", "duplicateauthor@example.com");
+		PostCreateRequest request = new PostCreateRequest(
+			BoardType.FREE,
+			"합주 공지",
+			"토요일 오후 2시에 합주합니다.",
+			List.of(
+				mediaRequest(PostMediaType.IMAGE, "https://cdn.example.com/image.jpg", 0),
+				mediaRequest(PostMediaType.VIDEO, "https://cdn.example.com/video.mp4", 0)
+			)
+		);
+
+		assertThatThrownBy(() -> postCreateService.create(author.getId(), request))
+			.isInstanceOfSatisfying(BusinessException.class, exception ->
+				assertThat(exception.getErrorCode()).isEqualTo(ErrorCode.COMMON_INVALID_INPUT)
+			);
 	}
 
 	@Test
@@ -113,5 +175,17 @@ class PostCreateServiceTest {
 			true,
 			true
 		));
+	}
+
+	private PostMediaRequest mediaRequest(PostMediaType mediaType, String mediaUrl, int sortOrder) {
+		return new PostMediaRequest(
+			mediaType,
+			mediaUrl,
+			"https://cdn.example.com/thumb.jpg",
+			"media",
+			"image/jpeg",
+			1024L,
+			sortOrder
+		);
 	}
 }

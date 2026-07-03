@@ -20,13 +20,15 @@ public class PostCreateService {
 
 	private final PostRepository postRepository;
 	private final UserRepository userRepository;
+	private final PostMediaService postMediaService;
 
 	@Transactional
 	public PostCreateResponse create(Long authorId, PostCreateRequest request) {
 		User author = userRepository.findByIdAndStatus(authorId, UserStatus.ACTIVE)
 			.orElseThrow(() -> new BusinessException(ErrorCode.COMMON_NOT_FOUND));
 		Post post = Post.create(request.title(), request.content(), author, request.boardType());
+		Post savedPost = postRepository.save(post);
 
-		return PostCreateResponse.from(postRepository.save(post));
+		return PostCreateResponse.from(savedPost, postMediaService.attach(savedPost, request.mediaItems()));
 	}
 }
