@@ -148,6 +148,76 @@ class PostControllerTest {
 	}
 
 	@Test
+	@DisplayName("미디어 URL이 2048자를 초과하면 E01 에러 응답을 반환한다")
+	void mediaUrlLongerThan2048() throws Exception {
+		setAuthenticatedPrincipal(1L, "bandmaster");
+
+		mockMvc.perform(post("/api/posts")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(postCreateRequestWithMediaUrl("a".repeat(2049))))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("E01"))
+			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
+	}
+
+	@Test
+	@DisplayName("미디어 콘텐츠 타입이 100자를 초과하면 E01 에러 응답을 반환한다")
+	void contentTypeLongerThan100() throws Exception {
+		setAuthenticatedPrincipal(1L, "bandmaster");
+
+		mockMvc.perform(post("/api/posts")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(postCreateRequestWithContentType("a".repeat(101))))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("E01"))
+			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
+	}
+
+	@Test
+	@DisplayName("미디어 썸네일 URL이 2048자를 초과하면 E01 에러 응답을 반환한다")
+	void thumbnailUrlLongerThan2048() throws Exception {
+		setAuthenticatedPrincipal(1L, "bandmaster");
+
+		mockMvc.perform(post("/api/posts")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(postCreateRequestWithThumbnailUrl("a".repeat(2049))))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("E01"))
+			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
+	}
+
+	@Test
+	@DisplayName("미디어 원본 파일명이 255자를 초과하면 E01 에러 응답을 반환한다")
+	void originalFileNameLongerThan255() throws Exception {
+		setAuthenticatedPrincipal(1L, "bandmaster");
+
+		mockMvc.perform(post("/api/posts")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(postCreateRequestWithOriginalFileName("a".repeat(256))))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("E01"))
+			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
+	}
+
+	@Test
+	@DisplayName("미디어 파일 크기가 음수이면 E01 에러 응답을 반환한다")
+	void negativeFileSizeBytes() throws Exception {
+		setAuthenticatedPrincipal(1L, "bandmaster");
+
+		mockMvc.perform(post("/api/posts")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content(postCreateRequestWithFileSizeBytes(-1)))
+			.andExpect(status().isBadRequest())
+			.andExpect(jsonPath("$.status").value(400))
+			.andExpect(jsonPath("$.code").value("E01"))
+			.andExpect(jsonPath("$.message").value("요청 값이 올바르지 않습니다."));
+	}
+
+	@Test
 	@DisplayName("제목이 비어 있으면 E01 에러 응답을 반환한다")
 	void blankTitle() throws Exception {
 		setAuthenticatedPrincipal(1L, "bandmaster");
@@ -320,6 +390,111 @@ class PostControllerTest {
 				]
 			}
 			""";
+	}
+
+	private String postCreateRequestWithMediaUrl(String mediaUrl) {
+		return """
+			{
+				"boardType": "FREE",
+				"title": "합주 공지",
+				"content": "토요일 오후 2시에 합주합니다.",
+				"mediaItems": [
+					{
+						"mediaType": "IMAGE",
+						"mediaUrl": "%s",
+						"thumbnailUrl": "https://cdn.example.com/thumb.jpg",
+						"originalFileName": "image.jpg",
+						"contentType": "image/jpeg",
+						"fileSizeBytes": 1024,
+						"sortOrder": 0
+					}
+				]
+			}
+			""".formatted(mediaUrl);
+	}
+
+	private String postCreateRequestWithContentType(String contentType) {
+		return """
+			{
+				"boardType": "FREE",
+				"title": "합주 공지",
+				"content": "토요일 오후 2시에 합주합니다.",
+				"mediaItems": [
+					{
+						"mediaType": "IMAGE",
+						"mediaUrl": "https://cdn.example.com/image.jpg",
+						"thumbnailUrl": "https://cdn.example.com/thumb.jpg",
+						"originalFileName": "image.jpg",
+						"contentType": "%s",
+						"fileSizeBytes": 1024,
+						"sortOrder": 0
+					}
+				]
+			}
+			""".formatted(contentType);
+	}
+
+	private String postCreateRequestWithThumbnailUrl(String thumbnailUrl) {
+		return """
+			{
+				"boardType": "FREE",
+				"title": "합주 공지",
+				"content": "토요일 오후 2시에 합주합니다.",
+				"mediaItems": [
+					{
+						"mediaType": "IMAGE",
+						"mediaUrl": "https://cdn.example.com/image.jpg",
+						"thumbnailUrl": "%s",
+						"originalFileName": "image.jpg",
+						"contentType": "image/jpeg",
+						"fileSizeBytes": 1024,
+						"sortOrder": 0
+					}
+				]
+			}
+			""".formatted(thumbnailUrl);
+	}
+
+	private String postCreateRequestWithOriginalFileName(String originalFileName) {
+		return """
+			{
+				"boardType": "FREE",
+				"title": "합주 공지",
+				"content": "토요일 오후 2시에 합주합니다.",
+				"mediaItems": [
+					{
+						"mediaType": "IMAGE",
+						"mediaUrl": "https://cdn.example.com/image.jpg",
+						"thumbnailUrl": "https://cdn.example.com/thumb.jpg",
+						"originalFileName": "%s",
+						"contentType": "image/jpeg",
+						"fileSizeBytes": 1024,
+						"sortOrder": 0
+					}
+				]
+			}
+			""".formatted(originalFileName);
+	}
+
+	private String postCreateRequestWithFileSizeBytes(long fileSizeBytes) {
+		return """
+			{
+				"boardType": "FREE",
+				"title": "합주 공지",
+				"content": "토요일 오후 2시에 합주합니다.",
+				"mediaItems": [
+					{
+						"mediaType": "IMAGE",
+						"mediaUrl": "https://cdn.example.com/image.jpg",
+						"thumbnailUrl": "https://cdn.example.com/thumb.jpg",
+						"originalFileName": "image.jpg",
+						"contentType": "image/jpeg",
+						"fileSizeBytes": %d,
+						"sortOrder": 0
+					}
+				]
+			}
+			""".formatted(fileSizeBytes);
 	}
 
 	private String postCreateRequestWithManyMediaItems(int count) {

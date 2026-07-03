@@ -124,14 +124,29 @@ class PostMediaServiceTest {
 		)));
 	}
 
+	@Test
+	@DisplayName("파일 크기가 음수이면 E01 예외를 던지고 미디어를 저장하지 않는다")
+	void negativeFileSizeBytes() {
+		Post post = savePost("negativefilemedia", "negativefilemedia@example.com");
+
+		assertInvalidInput(() -> postMediaService.attach(post, List.of(
+			request(PostMediaType.IMAGE, "https://cdn.example.com/image.jpg", -1L, 0)
+		)));
+		assertThat(postMediaRepository.countByPostIdAndDeletedFalse(post.getId())).isZero();
+	}
+
 	private PostMediaRequest request(PostMediaType mediaType, String mediaUrl, int sortOrder) {
+		return request(mediaType, mediaUrl, 1024L, sortOrder);
+	}
+
+	private PostMediaRequest request(PostMediaType mediaType, String mediaUrl, Long fileSizeBytes, int sortOrder) {
 		return new PostMediaRequest(
 			mediaType,
 			mediaUrl,
 			"https://cdn.example.com/thumb.jpg",
 			"media",
 			"image/jpeg",
-			1024L,
+			fileSizeBytes,
 			sortOrder
 		);
 	}

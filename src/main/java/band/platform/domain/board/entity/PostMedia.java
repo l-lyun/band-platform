@@ -62,7 +62,7 @@ public class PostMedia extends BaseEntity {
 		Long fileSizeBytes,
 		Integer sortOrder
 	) {
-		validate(post, mediaType, mediaUrl, sortOrder);
+		validate(post, mediaType, mediaUrl, fileSizeBytes, sortOrder);
 		this.post = post;
 		this.mediaType = mediaType;
 		this.mediaUrl = mediaUrl;
@@ -100,8 +100,21 @@ public class PostMedia extends BaseEntity {
 		this.deleted = true;
 	}
 
-	private static void validate(Post post, PostMediaType mediaType, String mediaUrl, Integer sortOrder) {
-		if (post == null || mediaType == null || !StringUtils.hasText(mediaUrl) || sortOrder == null || sortOrder < 0) {
+	private static void validate(
+		Post post,
+		PostMediaType mediaType,
+		String mediaUrl,
+		Long fileSizeBytes,
+		Integer sortOrder
+	) {
+		if (
+			post == null
+				|| mediaType == null
+				|| !StringUtils.hasText(mediaUrl)
+				|| fileSizeBytes != null && fileSizeBytes < 0
+				|| sortOrder == null
+				|| sortOrder < 0
+		) {
 			throw new BusinessException(ErrorCode.COMMON_INVALID_INPUT);
 		}
 	}

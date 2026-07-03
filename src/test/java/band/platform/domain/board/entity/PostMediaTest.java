@@ -113,6 +113,21 @@ class PostMediaTest {
 		));
 	}
 
+	@Test
+	@DisplayName("파일 크기가 음수이면 E01 예외를 던진다")
+	void negativeFileSizeBytes() {
+		assertInvalidInput(() -> PostMedia.create(
+			post(),
+			PostMediaType.IMAGE,
+			"https://cdn.example.com/image.jpg",
+			null,
+			"image.jpg",
+			"image/jpeg",
+			-1L,
+			0
+		));
+	}
+
 	private PostMedia imageMedia(int sortOrder) {
 		return PostMedia.create(
 			post(),
