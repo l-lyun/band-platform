@@ -35,7 +35,9 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import band.platform.domain.user.controller.UserController;
+import band.platform.domain.user.controller.UserInterestController;
 import band.platform.domain.user.controller.UserProfileController;
+import band.platform.domain.user.service.UserInterestService;
 import band.platform.domain.user.service.UserLoginService;
 import band.platform.domain.user.service.UserPasswordResetService;
 import band.platform.domain.user.service.UserProfileService;
@@ -166,6 +168,24 @@ class SecurityConfigTest {
 			.andExpect(jsonPath("$.code").value("A01"));
 	}
 
+	@Test
+	@DisplayName("관심사 조회 API 익명 요청은 A01로 차단된다")
+	void interestReadRequiresAuthentication() throws Exception {
+		mockMvc.perform(get("/api/users/me/interests"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value("A01"));
+	}
+
+	@Test
+	@DisplayName("관심사 수정 API 익명 요청은 A01로 차단된다")
+	void interestUpdateRequiresAuthentication() throws Exception {
+		mockMvc.perform(put("/api/users/me/interests")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{}"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value("A01"));
+	}
+
 	@Configuration
 	@EnableWebMvc
 	@EnableWebSecurity
@@ -237,6 +257,11 @@ class SecurityConfigTest {
 		}
 
 		@Bean
+		UserInterestController userInterestController(UserInterestService userInterestService) {
+			return new UserInterestController(userInterestService);
+		}
+
+		@Bean
 		UserSignupService userSignupService() {
 			return mock(UserSignupService.class);
 		}
@@ -264,6 +289,11 @@ class SecurityConfigTest {
 		@Bean
 		UserProfileService userProfileService() {
 			return mock(UserProfileService.class);
+		}
+
+		@Bean
+		UserInterestService userInterestService() {
+			return mock(UserInterestService.class);
 		}
 
 		@Bean
