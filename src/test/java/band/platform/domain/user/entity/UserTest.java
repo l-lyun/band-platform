@@ -40,6 +40,28 @@ class UserTest {
 		assertThat(user.getStatus()).isEqualTo(UserStatus.ACTIVE);
 	}
 
+	@Test
+	@DisplayName("프로필 정보를 수정하면 닉네임, 포지션, 이미지, 성별, 소개, 공개 여부가 바뀐다")
+	void updateProfile() {
+		User user = createLocalUserFixture();
+
+		user.updateProfile(
+			"새닉네임",
+			Position.DRUM,
+			"https://image.example.com/profile.png",
+			Gender.FEMALE,
+			"드럼 연주자입니다.",
+			true
+		);
+
+		assertThat(user.getName()).isEqualTo("새닉네임");
+		assertThat(user.getPosition()).isEqualTo(Position.DRUM);
+		assertThat(user.getProfileImg()).isEqualTo("https://image.example.com/profile.png");
+		assertThat(user.getGender()).isEqualTo(Gender.FEMALE);
+		assertThat(user.getDescription()).isEqualTo("드럼 연주자입니다.");
+		assertThat(user.getOpened()).isTrue();
+	}
+
 	private User createLocalUserFixture() {
 		return User.createLocalUser(
 			"김김김",

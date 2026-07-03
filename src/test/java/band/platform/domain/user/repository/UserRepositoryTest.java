@@ -10,6 +10,7 @@ import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
 
 import band.platform.domain.user.entity.Gender;
+import band.platform.domain.user.entity.Position;
 import band.platform.domain.user.entity.User;
 import band.platform.domain.user.entity.UserStatus;
 
@@ -49,6 +50,26 @@ class UserRepositoryTest {
 
 		assertThat(userRepository.existsByEmail("bandmaster@example.com")).isTrue();
 		assertThat(userRepository.existsByEmail("unknown@example.com")).isFalse();
+	}
+
+	@Test
+	@DisplayName("프로필 포지션을 저장하고 다시 조회한다")
+	void saveProfilePosition() {
+		User user = saveUser("bandmaster", "bandmaster@example.com");
+		user.updateProfile(
+			user.getName(),
+			Position.KEYBOARD,
+			user.getProfileImg(),
+			user.getGender(),
+			user.getDescription(),
+			user.getOpened()
+		);
+		userRepository.flush();
+		entityManager.clear();
+
+		User foundUser = userRepository.findByLoginId("bandmaster").orElseThrow();
+
+		assertThat(foundUser.getPosition()).isEqualTo(Position.KEYBOARD);
 	}
 
 	@Test

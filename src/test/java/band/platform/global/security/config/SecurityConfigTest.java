@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -34,8 +35,10 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.servlet.config.annotation.EnableWebMvc;
 
 import band.platform.domain.user.controller.UserController;
+import band.platform.domain.user.controller.UserProfileController;
 import band.platform.domain.user.service.UserLoginService;
 import band.platform.domain.user.service.UserPasswordResetService;
+import band.platform.domain.user.service.UserProfileService;
 import band.platform.domain.user.service.UserSignupService;
 import band.platform.domain.user.service.UserSocialLoginService;
 import band.platform.domain.user.service.UserTokenService;
@@ -145,6 +148,24 @@ class SecurityConfigTest {
 			.andExpect(jsonPath("$.code").value("A01"));
 	}
 
+	@Test
+	@DisplayName("프로필 조회 API 익명 요청은 A01로 차단된다")
+	void profileReadRequiresAuthentication() throws Exception {
+		mockMvc.perform(get("/api/users/me/profile"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value("A01"));
+	}
+
+	@Test
+	@DisplayName("프로필 수정 API 익명 요청은 A01로 차단된다")
+	void profileUpdateRequiresAuthentication() throws Exception {
+		mockMvc.perform(put("/api/users/me/profile")
+				.contentType(MediaType.APPLICATION_JSON)
+				.content("{}"))
+			.andExpect(status().isUnauthorized())
+			.andExpect(jsonPath("$.code").value("A01"));
+	}
+
 	@Configuration
 	@EnableWebMvc
 	@EnableWebSecurity
@@ -211,6 +232,11 @@ class SecurityConfigTest {
 		}
 
 		@Bean
+		UserProfileController userProfileController(UserProfileService userProfileService) {
+			return new UserProfileController(userProfileService);
+		}
+
+		@Bean
 		UserSignupService userSignupService() {
 			return mock(UserSignupService.class);
 		}
@@ -233,6 +259,11 @@ class SecurityConfigTest {
 		@Bean
 		UserSocialLoginService userSocialLoginService() {
 			return mock(UserSocialLoginService.class);
+		}
+
+		@Bean
+		UserProfileService userProfileService() {
+			return mock(UserProfileService.class);
 		}
 
 		@Bean
